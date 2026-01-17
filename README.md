@@ -48,11 +48,8 @@ FinTrac_V1/
 │   └── FinTrac_Analysis.ipynb 
 ├── src/                    # Modular source code
 │   ├── init_data.py          # Generates User Data
-
 │   └── sentiment.py        # NLP Pipeline
 ├── Dockerfile              # Container configuration
 ├── requirements.txt        # Python dependencies
 └── README.md               # Documentation
 
-
-## Getting Started
