@@ -1,5 +1,5 @@
 # Base Image
-FROM python:3.9
+FROM 3.10-slim
 WORKDIR /app
 
 # Install system dependencies (needed for some math libraries)
