@@ -1,0 +1,26 @@
+# Standard Data Science Stack
+pandas==2.2.0
+numpy==1.26.3
+matplotlib==3.8.2
+seaborn==0.13.1
+scikit-learn==1.4.0
+jupyterlab==4.0.11
+
+# AI & Machine Learning (CRITICAL ADDITION)
+torch
+transformers
+accelerate
+
+# Financial APIs
+yfinance==0.2.36
+# Keeping these is fine for V2, even if V1 uses local proxies
+fredapi==0.5.1  
+sec-api==1.0.17
+
+# Web App & Database
+streamlit==1.31.0
+sqlalchemy==2.0.25
+
+# Environment Management
+python-dotenv==1.0.1
+openpyxl

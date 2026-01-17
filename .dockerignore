@@ -1,0 +1,6 @@
+# .dockerignore
+model/
+.git/
+.env          
+__pycache__/
+*.db
