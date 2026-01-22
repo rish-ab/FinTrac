@@ -1,18 +1,18 @@
 FinTrac: Multi-Modal Financial Intelligence Engine
 
-FinTrac is an algorithmic trading and risk management system designed to bridge the gap between technical analysis and fundamental economic reality. Unlike standard automated systems that trade solely on price momentum, FinTrac integrates macroeconomic indicators and natural language processing (specifically SEC 10-K sentiment analysis) to validate trading decisions.
+FinTrac is an algorithmic trading & risk management system designed to bridge the gap between technical analysis and fundamental economic reality. Unlike standard automated systems that trade solely on price momentum, FinTrac integrates Macroeconomic Indicators (Yield Curves) and Natural Language Processing (SEC 10-K Sentiment) to validate trading decisions.
 
 Key Features
 
-1. Risk Management (AI Veto)
+1. The "AI Veto" (Risk Management)
 
 Standard momentum algorithms often execute buy orders during asset bubbles immediately preceding a correction. FinTrac employs a local Small Language Model (FinBERT) to analyze corporate 10-K filings.
 
-Logic: If technical indicators suggest a buy position but AI sentiment analysis returns a negative signal, the trade is vetoed.
+Logic: If Technicals = BUY but AI Sentiment = NEGATIVE, the trade is Vetoed.
 
-Result: In backtesting scenarios, this mechanism prevented entry into deteriorating positions despite deceptive price rallies.
+Result: In backtesting scenarios, this mechanism prevented entry into deteriorating positions (e.g., Ford, FedEx) despite deceptive price rallies.
 
-2. Dynamic Risk Scoring
+2. Personalized Risk Engine
 
 Financial strategy requires personalization. FinTrac calculates a dynamic Trade Score (0-100) based on the user's real-time liquidity.
 
@@ -22,7 +22,7 @@ Conservative Profile: Penalizes trades heavily during periods of credit stress, 
 
 3. Macro-Proxy Architecture
 
-FinTrac engineers economic indicators from market relationships rather than relying solely on external data feeds:
+FinTrac engineers economic indicators from market relationships rather than relying solely on expensive external data feeds:
 
 Labor Confidence: Derived from the ratio of Consumer Discretionary (XLY) versus Consumer Staples (XLP).
 
@@ -103,7 +103,7 @@ Model Weights: The NLP model uses pre-trained FinBERT weights. Ensure adequate d
 
 Future Roadmap
 
-Event-Driven Probability Engine:
+Event-Driven Probability Engine
 
 Objective: To quantify the impact of exogenous shocks (e.g., executive controversies, regulatory bans) that technical indicators often miss.
 
@@ -111,10 +111,10 @@ Implementation: Development of a continuous training pipeline where a small lang
 
 Outcome: The system will output a "Probability Adjustment Factor." For example, if technicals are bullish on an EV stock, but news breaks regarding a country-wide ban, the model assigns a high probability of bearish reversal, overriding the technical signal.
 
-Advanced Semantic Reasoning:
+Advanced Semantic Reasoning
 
 Integration of fine-tuned Llama-3 models to parse complex financial nuances beyond simple sentiment scoring.
 
-Real-Time Liquidity Integration:
+Real-Time Liquidity Integration
 
 Expansion of user risk profiles to include real-time bank API integration for live liquidity tracking.
