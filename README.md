@@ -91,3 +91,30 @@ docker build -t fintrac .
 Run the container:
 
 docker run -p 8888:8888 fintrac
+
+
+Developer Notes
+
+Current Version: 1.0
+
+Data Sources: Data is fetched via public APIs (FRED, Yahoo Finance, SEC EDGAR). Rate limits may apply.
+
+Model Weights: The NLP model uses pre-trained FinBERT weights. Ensure adequate disk space is available for model caching.
+
+Future Roadmap
+
+Event-Driven Probability Engine:
+
+Objective: To quantify the impact of exogenous shocks (e.g., executive controversies, regulatory bans) that technical indicators often miss.
+
+Implementation: Development of a continuous training pipeline where a small language model ingests real-time news and correlates specific event types with subsequent price deviations.
+
+Outcome: The system will output a "Probability Adjustment Factor." For example, if technicals are bullish on an EV stock, but news breaks regarding a country-wide ban, the model assigns a high probability of bearish reversal, overriding the technical signal.
+
+Advanced Semantic Reasoning:
+
+Integration of fine-tuned Llama-3 models to parse complex financial nuances beyond simple sentiment scoring.
+
+Real-Time Liquidity Integration:
+
+Expansion of user risk profiles to include real-time bank API integration for live liquidity tracking.
