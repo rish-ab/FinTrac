@@ -1,55 +1,93 @@
-# FinTrac: Multi-Modal Financial Intelligence Engine
+##FinTrac: Multi-Modal Financial Intelligence Engine
 
-![Python](https://img.shields.io/badge/Python-3.10-blue.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-blue)
-![Status](https://img.shields.io/badge/Status-Portfolio_v1.0-orange)
+FinTrac is an algorithmic trading and risk management system designed to bridge the gap between technical analysis and fundamental economic reality. Unlike standard automated systems that trade solely on price momentum, FinTrac integrates macroeconomic indicators and natural language processing (specifically SEC 10-K sentiment analysis) to validate trading decisions.
 
-**FinTrac** is an algorithmic trading & risk management system that bridges the gap between technical analysis and fundamental reality. Unlike standard bots that trade solely on price momentum, FinTrac integrates **Macroeconomic Indicators** (Yield Curves) and **Natural Language Processing** (SEC 10-K Sentiment) to vet trades before they happen.
+##Key Features
 
----
+1. Risk Management (AI Veto)
 
-## 🚀 Key Features
+Standard momentum algorithms often execute buy orders during asset bubbles immediately preceding a correction. FinTrac employs a local Small Language Model (FinBERT) to analyze corporate 10-K filings.
 
-### 1. The "AI Veto" (Risk Management)
-Standard momentum algorithms often buy into "bubbles" right before a crash. FinTrac employs a local **Small Language Model (FinBERT)** to read corporate 10-K filings.
-* **Logic:** If Technicals = `BUY` but AI Sentiment = `NEGATIVE`, the trade is **Vetoed**.
-* **Result:** In backtests, this prevented entry into failing tickers (e.g., Ford, FedEx) despite deceptive price rallies.
+Logic: If technical indicators suggest a buy position but AI sentiment analysis returns a negative signal, the trade is vetoed.
 
-### 2. Personalized Risk Engine
-Financial advice cannot be "one size fits all." FinTrac calculates a dynamic **Trade Score (0-100)** based on the user's real-time liquidity.
-* **Aggressive Profile:** Prioritizes Momentum + Sentiment.
-* **Conservative Profile:** Heavily penalizes trades during "Credit Stress" events (e.g., widening High-Yield Bond spreads).
+Result: In backtesting scenarios, this mechanism prevented entry into deteriorating positions despite deceptive price rallies.
 
-### 3. Macro-Proxy Architecture
-Instead of relying on expensive external feeds, FinTrac engineers economic indicators from market relationships:
-* **Labor Confidence:** Derived from the ratio of *Consumer Discretionary (XLY)* vs. *Staples (XLP)*.
-* **Credit Stress:** Derived from High-Yield Bond ETF volatility.
+2. Dynamic Risk Scoring
 
----
+Financial strategy requires personalization. FinTrac calculates a dynamic Trade Score (0-100) based on the user's real-time liquidity.
 
-## 🛠️ Tech Stack
+Aggressive Profile: Prioritizes momentum and sentiment signals.
 
-* **Core:** Python 3.10, Pandas, NumPy
-* **Machine Learning:** PyTorch, HuggingFace Transformers (FinBERT)
-* **Data Store:** SQLite, YFinance
-* **Visualization:** Matplotlib, Seaborn
-* **Deployment:** Docker (Containerized Jupyter Environment)
+Conservative Profile: Penalizes trades heavily during periods of credit stress, such as widening High-Yield Bond spreads.
 
----
+3. Macro-Proxy Architecture
 
-## 📂 Project Structure
+FinTrac engineers economic indicators from market relationships rather than relying solely on external data feeds:
 
-```text
+Labor Confidence: Derived from the ratio of Consumer Discretionary (XLY) versus Consumer Staples (XLP).
+
+Credit Stress: Derived from High-Yield Bond ETF volatility.
+
+Technical Stack
+
+Core: Python 3.10, Pandas, NumPy
+
+Machine Learning: PyTorch, HuggingFace Transformers (FinBERT)
+
+Data Store: SQLite, YFinance
+
+Visualization: Matplotlib, Seaborn
+
+Deployment: Docker (Containerized Jupyter Environment)
+
+Project Structure
+
 FinTrac_V1/
-├── data/                   # SQLite database & raw CSVs
-├── model/                  # Local FinBERT weights (Git-ignored)
-├── notebooks/              # Interactive Analysis & Backtesting
-│   └── FinTrac_Analysis.ipynb 
-├── src/                    # Modular source code
-│   ├── init_data.py          # Generates User Data
-│   └── sentiment.py        # NLP Pipeline
+├── data/                   # SQLite database and raw CSV files
+├── model/                  # Local FinBERT weights (Excluded from version control)
+├── notebooks/              # Interactive Analysis and Backtesting
+│   └── FinTrac_Analysis.ipynb
+├── src/                    # Source code modules
+│   ├── user_init.py        # User transaction data generation
+│   ├── macro_init.py       # Macroeconomic data fetching (FRED)
+│   ├── sector_init.py      # Sector and market data (YFinance)
+│   └── sec_init.py         # SEC EDGAR report crawling and NLP
 ├── Dockerfile              # Container configuration
 ├── requirements.txt        # Python dependencies
-└── README.md               # Documentation
+└── README.md               # Project documentation
 
+
+Installation and Setup
+
+Local Environment
+
+Clone the repository:
+
+git clone [https://github.com/yourusername/FinTrac_V1.git](https://github.com/yourusername/FinTrac_V1.git)
+cd FinTrac_V1
+
+
+Install dependencies:
+It is recommended to use a virtual environment or Conda environment for dependency management.
+
+pip install -r requirements.txt
+
+
+Initialize Data:
+Run the initialization scripts in the src directory to populate the local SQLite database.
+
+python src/macro_init.py
+python src/sector_init.py
+python src/user_init.py
+
+
+Docker Environment
+
+Build the container:
+
+docker build -t fintrac .
+
+
+Run the container:
+
+docker run -p 8888:8888 fintrac
