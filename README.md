@@ -1,8 +1,8 @@
-##FinTrac: Multi-Modal Financial Intelligence Engine
+FinTrac: Multi-Modal Financial Intelligence Engine
 
 FinTrac is an algorithmic trading and risk management system designed to bridge the gap between technical analysis and fundamental economic reality. Unlike standard automated systems that trade solely on price momentum, FinTrac integrates macroeconomic indicators and natural language processing (specifically SEC 10-K sentiment analysis) to validate trading decisions.
 
-##Key Features
+Key Features
 
 1. Risk Management (AI Veto)
 
