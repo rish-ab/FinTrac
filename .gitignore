@@ -1,4 +1,5 @@
 model/
+Archived_Files/
 __pycache__/
 *.db
 .ipynb_checkpoints/

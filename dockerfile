@@ -1,5 +1,5 @@
 # Base Image
-FROM 3.10-slim
+FROM python:3.10-slim
 WORKDIR /app
 
 # Install system dependencies (needed for some math libraries)
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python requirements
-COPY requirements.txt .
+COPY requirments.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the project files
