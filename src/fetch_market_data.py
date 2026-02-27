@@ -46,7 +46,7 @@ def fetch_market_indicators():
         try:
             # Fetch history (last 10 years is usually sufficient for analysis)
             ticker_obj = yf.Ticker(ticker)
-            hist = ticker_obj.history(period="10y")['Close']
+            hist = ticker_obj.history(period="30y")['Close']
             
             # 1. Clean Timezone (Crucial for SQLite)
             # Remove timezone info so it's just "2023-01-01" not "2023-01-01 00:00:00-05:00"
@@ -102,6 +102,8 @@ if __name__ == "__main__":
     # 2. Inspect (Sanity Check)
     print("\n--- Preview of Fetched Data ---")
     print(market_df.head())
+    print("\n--- Preview of Fetched Data ---")
+    print(market_df.tail())
     
     # 3. Save
     save_to_db(market_df, DB_PATH)

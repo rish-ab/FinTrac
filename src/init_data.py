@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 
-din = datetime.today().strftime('%Y-%M-%D')
+din = datetime.today().strftime('%Y-%m-%d')
 print(din)
 
 # --- CONFIGURATION ---
