@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>FinTrac | Financial Portfolio AI</title>
+</head>
+<body class="bg-gray-900 text-white p-10">
+    <div class="max-w-xl mx-auto bg-gray-800 p-8 rounded-lg shadow-xl">
+        <h1 class="text-3xl font-bold mb-6 text-emerald-400">FinTrac V1.0</h1>
+        
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1">Monthly Income ($)</label>
+                {{ form.income(class="w-full p-2 rounded bg-gray-700 border-none") }}
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1">Risk Profile</label>
+                {{ form.risk_profile(class="w-full p-2 rounded bg-gray-700") }}
+            </div>
+
+            <div class="mb-6 border-t border-gray-700 pt-6">
+                <label class="block text-sm font-medium mb-1 text-emerald-300">Ticker Search</label>
+                {{ form.ticker(class="w-full p-2 rounded bg-gray-700 placeholder-gray-500", placeholder="AAPL") }}
+            </div>
+
+            {{ form.submit(class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded font-bold transition") }}
+        </form>
+    </div>
+</body>
+</html>

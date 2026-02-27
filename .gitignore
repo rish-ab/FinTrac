@@ -1,7 +1,21 @@
 model/
 Archived_Files/
-__pycache__/
-*.db
-.ipynb_checkpoints/
 *.pyc
 .env
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+# Jupyter Lab
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+*.ipynb
+# Data & Models
+engine/models/
+*.db
+static/charts/*.png
+# System/IDE
+.DS_Store
+.vscode/
