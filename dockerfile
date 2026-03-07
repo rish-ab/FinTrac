@@ -1,24 +1,36 @@
-# Base Image
-FROM python:3.10-slim
+# =============================================================
+# FinTrac V2 — Dockerfile
+# Python 3.11 (matches requirements.txt)
+# =============================================================
+
+FROM python:3.11-slim-bookworm
+
 WORKDIR /app
 
-# Install system dependencies (needed for some math libraries)
+# System dependencies
+# build-essential : compiles C extensions (pyarrow, cryptography)
+# libgomp1        : OpenMP for torch / numpy parallelism
+# curl            : healthcheck utility
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python requirements
-COPY req.txt .
-RUN pip install --no-cache-dir -r req.txt
+# ── Layer 1: dependencies (cached unless requirements.txt changes) ──
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the project files
-COPY . .
+# ── Layer 2: source code (changes frequently, goes last) ───────────
+COPY src/ ./src/
+COPY migrations/ ./migrations/
+COPY alembic.ini .
 
-# Expose the Jupyter port
-EXPOSE 8888
+# Expose FastAPI port
+EXPOSE 8000
 
-# Command to launch Jupyter Lab
-# --ip=0.0.0.0 allows access from outside the container
-# --allow-root is needed because Docker runs as root
-# --NotebookApp.token='' removes the password (Convenient for judges)
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Healthcheck — hits FastAPI's /health endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

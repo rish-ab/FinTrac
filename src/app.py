@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 import os
 # Import your existing logic
-from engine.FinTrac_Final import TradingEngine 
+from FinTrac_Final import TradingEngine
 
 app = Flask(__name__)
 

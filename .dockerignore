@@ -1,6 +1,46 @@
-# .dockerignore
-model/
-.git/
-.env          
+# =============================================================
+# FinTrac V2 — .dockerignore
+# =============================================================
+
+# ── LOCAL ENVIRONMENT ─────────────────────────────────────────
+venv/
+.venv/
+env/
+.env
+
+# ── PYTHON CACHE ──────────────────────────────────────────────
 __pycache__/
+*.py[cod]
+*.pyc
+.ipynb_checkpoints/
+
+# ── HEAVY LOCAL DATA (use Docker volumes instead) ─────────────
+data/
+model/
+*.parquet
 *.db
+
+# ── TESTS (not needed in the image) ──────────────────────────
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── DOCS & REPO FILES ─────────────────────────────────────────
+docs/
+.git/
+.gitignore
+README.md
+*.md
+
+# ── SCRIPTS (one-off ops, not needed in image) ────────────────
+scripts/
+
+# ── JUPYTER ───────────────────────────────────────────────────
+*.ipynb
+Archived_Files/
+
+# ── SYSTEM / IDE ──────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/

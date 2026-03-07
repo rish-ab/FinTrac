@@ -1,0 +1,71 @@
+# =============================================================
+# FinTrac V2 — docker-compose.yml
+# Spins up: MariaDB + Redis for local development
+# Ollama runs as a system service (outside Docker) — see README
+# =============================================================
+
+version: '3.8'
+
+services:
+
+  # ── MariaDB ─────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11.3
+    container_name: fintrac_mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Redis ────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: fintrac_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── FastAPI App ──────────────────────────────────────────────
+  fintrac:
+    build: .
+    container_name: fintrac_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src            # hot-reload source code
+      - ./migrations:/app/migrations
+      - ./data:/app/data          # Parquet lake + ChromaDB persistence
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # --reload enables hot-reload in development
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+# ── Named Volumes ────────────────────────────────────────────
+volumes:
+  mariadb_data:
+  redis_data:

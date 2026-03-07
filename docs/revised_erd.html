@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial Tracker — Revised ERD v2</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --blue: #58a6ff;
+    --blue-dim: #1f3a5f;
+    --green: #3fb950;
+    --green-dim: #1a3a22;
+    --purple: #bc8cff;
+    --purple-dim: #2d1e47;
+    --orange: #ffa657;
+    --orange-dim: #3d2a10;
+    --red: #ff7b72;
+    --teal: #39d0d8;
+    --teal-dim: #0d2f32;
+    --yellow: #e3b341;
+    --accent: #58a6ff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────── */
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    color: white;
+  }
+
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .header-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  .version-badge {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+
+  /* ── TABS ───────────────────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 0 32px;
+  }
+
+  .tab {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    border-top: none; border-left: none; border-right: none;
+    font-family: var(--sans);
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ── LEGEND ─────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 14px 32px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── MAIN CONTENT ───────────────────────────────────────── */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── DIAGRAM ────────────────────────────────────────────── */
+  #diagram-view {
+    padding: 24px 32px;
+    overflow-x: auto;
+  }
+
+  .diagram-container {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 900px;
+    overflow-x: auto;
+  }
+
+  .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* ── CHANGE LOG ─────────────────────────────────────────── */
+  #changes-view {
+    padding: 24px 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 1400px;
+  }
+
+  .change-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .change-card-header {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entity-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .change-card-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .new-badge {
+    margin-left: auto;
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--green);
+    font-size: 9px;
+    font-family: var(--mono);
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+
+  .change-list {
+    padding: 10px 16px;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .change-list li {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.5;
+  }
+
+  .change-list li::before {
+    content: '+';
+    color: var(--green);
+    font-family: var(--mono);
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .change-list li.fix::before { content: '~'; color: var(--orange); }
+  .change-list li.critical::before { content: '!'; color: var(--red); }
+
+  /* ── RAW CODE ───────────────────────────────────────────── */
+  #code-view {
+    padding: 24px 32px;
+  }
+
+  .code-wrapper {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .code-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-bar-left {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green { background: #28c840; }
+
+  .code-lang {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    margin-left: 8px;
+  }
+
+  .copy-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: var(--blue); }
+
+  pre {
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .c-comment { color: #6e7681; }
+  .c-entity { color: var(--blue); font-weight: 600; }
+  .c-field { color: var(--text); }
+  .c-type { color: var(--purple); }
+  .c-key { color: var(--orange); font-size: 10px; }
+  .c-rel { color: var(--teal); }
+
+  /* ── SCROLLBAR ──────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* ── MERMAID OVERRIDES ──────────────────────────────────── */
+  .mermaid svg { max-width: 100%; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-mark">₿</div>
+    <div>
+      <div class="header-title">Financial Tracker — Revised ERD</div>
+      <div class="header-sub">MariaDB OLTP + DuckDB/Parquet OLAP · AI Agent Layer</div>
+    </div>
+  </div>
+  <div class="version-badge">v2.0 REVISED</div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('diagram', this)">⬡ Diagram</button>
+  <button class="tab" onclick="switchTab('changes', this)">∆ Change Log</button>
+  <button class="tab" onclick="switchTab('code', this)">&lt;/&gt; Raw Mermaid</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div>Core User & Auth</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Portfolio & Trading</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bc8cff"></div>Asset Catalogue</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffa657"></div>AI / Recommendations</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#39d0d8"></div>Ingestion & Manifests</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>OLAP / Parquet</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff7b72"></div>NEW entities</div>
+</div>
+
+<!-- TAB 1: DIAGRAM -->
+<div id="diagram-view" class="tab-content active">
+  <div class="diagram-container">
+    <div class="mermaid">
+erDiagram
+    %% =============================================
+    %% MARIADB OLTP — Core Identity & Auth
+    %% =============================================
+    USER_IDENTITY {
+        uuid id PK
+        string email
+        string password_hash
+        datetime created_at
+        datetime updated_at
+    }
+
+    RISK_SETTINGS {
+        uuid id PK
+        uuid user_id FK
+        string risk_tolerance_level
+        int investment_horizon_months
+        string liquidity_preference
+        json sector_exclusions
+        decimal max_drawdown_pct
+        decimal max_exposure_limit
+        datetime valid_from
+        datetime valid_to
+    }
+
+    PORTFOLIO {
+        uuid id PK
+        uuid user_id FK
+        string name
+        string base_currency
+        string objective
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Asset Catalogue
+    %% =============================================
+    ASSET_CLASS_LOOKUP {
+        uuid id PK
+        string class_code
+        string class_name
+        json comparable_with
+    }
+
+    ASSET_MASTER {
+        uuid asset_id PK
+        string ticker_symbol
+        uuid asset_class_id FK
+        string exchange
+        string denomination_currency
+        string sector
+        string industry
+        string country_code
+        string status
+        datetime status_updated_at
+    }
+
+    ASSET_SUBTYPE_BOND {
+        uuid id PK
+        uuid asset_id FK
+        date maturity_date
+        decimal coupon_rate
+        string issuer_type
+        string credit_rating
+    }
+
+    ASSET_SUBTYPE_FOREX {
+        uuid id PK
+        uuid asset_id FK
+        string base_currency
+        string quote_currency
+    }
+
+    MACRO_INDICATOR_MASTER {
+        uuid id PK
+        string series_code
+        string name
+        string source
+        string unit
+        string country_code
+        string release_frequency
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Portfolio & Trading
+    %% =============================================
+    WATCHLIST {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        decimal sentiment_trigger_high
+        decimal sentiment_trigger_low
+        decimal price_trigger_high
+        decimal price_trigger_low
+    }
+
+    ORDER_GROUP {
+        uuid id PK
+        uuid user_id FK
+        string strategy_label
+        datetime created_at
+    }
+
+    TRANSACTION_LEDGER {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        uuid order_group_id FK
+        string action_type
+        decimal quantity
+        decimal execution_price
+        string settlement_currency
+        decimal commission
+        decimal tax_withheld
+        string order_type
+        datetime executed_at
+    }
+
+    POSITION_JOURNAL {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        decimal net_quantity
+        decimal average_cost
+        string position_currency
+        decimal realized_pnl
+        decimal unrealized_pnl
+        boolean is_current
+        datetime valid_from
+        datetime valid_to
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — AI Layer
+    %% =============================================
+    AI_RECOMMENDATION_LOG {
+        uuid id PK
+        uuid user_id FK
+        uuid asset_id FK
+        uuid comparison_session_id FK
+        string recommended_action
+        decimal confidence_score
+        json driving_factors
+        string model_version
+        string context_snapshot_id
+        datetime expires_at
+        datetime generated_at
+    }
+
+    RECOMMENDATION_FEEDBACK {
+        uuid id PK
+        uuid recommendation_id FK
+        boolean user_acted
+        datetime action_taken_at
+        decimal outcome_pct_7d
+        decimal outcome_pct_30d
+        int user_rating
+        datetime recorded_at
+    }
+
+    COMPARISON_SESSION {
+        uuid id PK
+        uuid user_id FK
+        decimal budget
+        int horizon_months
+        json assets_compared
+        uuid winner_asset_id FK
+        datetime generated_at
+    }
+
+    ALERT_QUEUE {
+        uuid id PK
+        uuid user_id FK
+        uuid watchlist_id FK
+        string alert_type
+        decimal trigger_value
+        datetime triggered_at
+        datetime delivered_at
+        string channel
+        string status
+    }
+
+    DOCUMENT_REGISTRY {
+        uuid id PK
+        uuid asset_id FK
+        string doc_type
+        string source_url
+        datetime filed_at
+        uuid ingestion_id FK
+        string raw_text_path
+        string embedding_status
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Ingestion
+    %% =============================================
+    INGESTION_LOG {
+        uuid ingestion_id PK
+        string source_api
+        string file_path_reference
+        string schema_hash
+        datetime fetched_at
+        string status
+    }
+
+    PARQUET_MANIFEST {
+        uuid id PK
+        uuid ingestion_id FK
+        string parquet_file_path
+        int row_count
+        string schema_hash
+        datetime written_at
+        string validation_status
+    }
+
+    %% =============================================
+    %% DUCKDB OLAP — Parquet Views
+    %% =============================================
+    PARQUET_TICK_DATA {
+        uuid asset_id FK
+        datetime tick_time
+        decimal open
+        decimal high
+        decimal low
+        decimal close
+        decimal adjusted_close
+        int volume
+        decimal bid
+        decimal ask
+        uuid ingestion_id FK
+    }
+
+    PARQUET_MACRO_SERIES {
+        uuid indicator_id FK
+        datetime observation_date
+        decimal reported_value
+        uuid ingestion_id FK
+    }
+
+    PARQUET_NLP_SENTIMENT {
+        uuid asset_id FK
+        uuid document_id FK
+        datetime doc_timestamp
+        string source_type
+        decimal compound_polarity_score
+        decimal positive_score
+        decimal negative_score
+        uuid ingestion_id FK
+    }
+
+    %% =============================================
+    %% RELATIONSHIPS — User & Portfolio
+    %% =============================================
+    USER_IDENTITY ||--o{ RISK_SETTINGS : governs
+    USER_IDENTITY ||--o{ PORTFOLIO : owns
+    USER_IDENTITY ||--o{ WATCHLIST : monitors
+    USER_IDENTITY ||--o{ TRANSACTION_LEDGER : executes
+    USER_IDENTITY ||--o{ POSITION_JOURNAL : holds
+    USER_IDENTITY ||--o{ AI_RECOMMENDATION_LOG : receives
+    USER_IDENTITY ||--o{ COMPARISON_SESSION : initiates
+    USER_IDENTITY ||--o{ ORDER_GROUP : creates
+
+    PORTFOLIO ||--o{ WATCHLIST : scopes
+    PORTFOLIO ||--o{ TRANSACTION_LEDGER : contains
+    PORTFOLIO ||--o{ POSITION_JOURNAL : tracks
+
+    %% =============================================
+    %% RELATIONSHIPS — Asset Catalogue
+    %% =============================================
+    ASSET_CLASS_LOOKUP ||--o{ ASSET_MASTER : classifies
+    ASSET_MASTER ||--o| ASSET_SUBTYPE_BOND : extends
+    ASSET_MASTER ||--o| ASSET_SUBTYPE_FOREX : extends
+    ASSET_MASTER ||--o{ WATCHLIST : targets
+    ASSET_MASTER ||--o{ TRANSACTION_LEDGER : trades
+    ASSET_MASTER ||--o{ POSITION_JOURNAL : defines
+    ASSET_MASTER ||--o{ AI_RECOMMENDATION_LOG : analyzes
+    ASSET_MASTER ||--o{ COMPARISON_SESSION : evaluates
+    ASSET_MASTER ||--o{ DOCUMENT_REGISTRY : documents
+    ASSET_MASTER ||--o{ PARQUET_TICK_DATA : structures
+    ASSET_MASTER ||--o{ PARQUET_NLP_SENTIMENT : structures
+
+    MACRO_INDICATOR_MASTER ||--o{ PARQUET_MACRO_SERIES : defines
+
+    %% =============================================
+    %% RELATIONSHIPS — Trading & Orders
+    %% =============================================
+    ORDER_GROUP ||--o{ TRANSACTION_LEDGER : groups
+
+    %% =============================================
+    %% RELATIONSHIPS — AI Layer
+    %% =============================================
+    AI_RECOMMENDATION_LOG ||--o| RECOMMENDATION_FEEDBACK : evaluated_by
+    COMPARISON_SESSION ||--o{ AI_RECOMMENDATION_LOG : generates
+
+    WATCHLIST ||--o{ ALERT_QUEUE : triggers
+
+    DOCUMENT_REGISTRY ||--o{ PARQUET_NLP_SENTIMENT : sourced_from
+
+    %% =============================================
+    %% RELATIONSHIPS — Ingestion
+    %% =============================================
+    INGESTION_LOG ||--o{ PARQUET_TICK_DATA : maps_to_file
+    INGESTION_LOG ||--o{ PARQUET_MACRO_SERIES : maps_to_file
+    INGESTION_LOG ||--o{ PARQUET_NLP_SENTIMENT : maps_to_file
+    INGESTION_LOG ||--o{ DOCUMENT_REGISTRY : indexes
+    INGESTION_LOG ||--o{ PARQUET_MANIFEST : validated_by
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: CHANGE LOG -->
+<div id="changes-view" class="tab-content">
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#3fb950"></div>
+      <span class="change-card-title">PORTFOLIO</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Separates user goals — retirement vs speculative vs income</li>
+      <li>TRANSACTION_LEDGER and POSITION_JOURNAL now FK into this</li>
+      <li>base_currency field fixes multi-currency P&L aggregation</li>
+      <li>objective enum: GROWTH / INCOME / PRESERVATION / SPECULATIVE</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#ff7b72"></div>
+      <span class="change-card-title">MACRO_INDICATOR_MASTER</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li class="critical">Fixes CRITICAL: PARQUET_MACRO_SERIES was a table of unidentified numbers</li>
+      <li>series_code maps to FRED / BLS / ECB identifiers (e.g. FEDFUNDS, CPIAUCSL)</li>
+      <li>unit and release_frequency allow correct normalisation in AI prompts</li>
+      <li>country_code enables geo-filtered macro queries</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#ffa657"></div>
+      <span class="change-card-title">RECOMMENDATION_FEEDBACK</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li class="critical">Fixes CRITICAL: AI had no feedback loop — could never improve</li>
+      <li>user_acted boolean tracks if recommendation was followed</li>
+      <li>outcome_pct_7d and outcome_pct_30d measure prediction accuracy</li>
+      <li>user_rating (1–5) captures subjective satisfaction</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#ffa657"></div>
+      <span class="change-card-title">COMPARISON_SESSION</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Persists the core user workflow: "compare AAPL vs GOOGL vs 2yr Bond"</li>
+      <li>budget and horizon_months carry the user's constraint context</li>
+      <li>assets_compared (JSON array) stores all evaluated options</li>
+      <li>winner_asset_id records AI's final recommendation</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#ffa657"></div>
+      <span class="change-card-title">ALERT_QUEUE</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>WATCHLIST had trigger thresholds with nowhere to send them</li>
+      <li>channel enum: EMAIL / PUSH / WEBHOOK / SMS</li>
+      <li>delivered_at enables retry logic for failed deliveries</li>
+      <li>Decouples detection from delivery for async processing</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#39d0d8"></div>
+      <span class="change-card-title">DOCUMENT_REGISTRY</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Required for RAG: AI must trace sentiment back to source filing</li>
+      <li>doc_type enum: SEC_8K / SEC_10K / EARNINGS_CALL / NEWS / ANALYST_REPORT</li>
+      <li>raw_text_path links to the extracted text file for vector embedding</li>
+      <li>embedding_status tracks RAG pipeline progress: PENDING / DONE / FAILED</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#39d0d8"></div>
+      <span class="change-card-title">PARQUET_MANIFEST</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Replaces unenforced cross-store FKs with a verifiable audit trail</li>
+      <li>schema_hash detects silent schema drift in Parquet files</li>
+      <li>row_count enables reconciliation jobs to catch missing data</li>
+      <li>validation_status tracks nightly reconciliation results</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#bc8cff"></div>
+      <span class="change-card-title">ASSET_CLASS_LOOKUP</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Normalises free-text asset_class string in ASSET_MASTER</li>
+      <li>comparable_with JSON array guides valid AI comparisons</li>
+      <li>Prevents AI from comparing CRYPTO with BOND_GOVT without caveats</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#bc8cff"></div>
+      <span class="change-card-title">ASSET_SUBTYPE_BOND / FOREX</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li>Bond-specific: maturity_date, coupon_rate, issuer_type, credit_rating</li>
+      <li>Forex-specific: base_currency, quote_currency</li>
+      <li>Keeps ASSET_MASTER generic while storing type-specific data correctly</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#3fb950"></div>
+      <span class="change-card-title">ORDER_GROUP</span>
+      <span class="new-badge">NEW</span>
+    </div>
+    <ul class="change-list">
+      <li class="fix">Replaces string transaction_group_id — now a proper FK entity</li>
+      <li>strategy_label tags multi-leg trades (e.g. "Pairs Trade AAPL/MSFT")</li>
+      <li>Referential integrity now enforceable at DB level</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#58a6ff"></div>
+      <span class="change-card-title">ASSET_MASTER — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="critical">Fixes CRITICAL: added exchange and denomination_currency</li>
+      <li>sector and industry fields for AI peer comparison ("suggest similar tech large cap")</li>
+      <li>country_code for geopolitical risk filtering</li>
+      <li>asset_class_id now FKs to ASSET_CLASS_LOOKUP instead of free string</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#e3b341"></div>
+      <span class="change-card-title">PARQUET_TICK_DATA — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="critical">Fixes CRITICAL: replaced single price with full OHLCV schema</li>
+      <li>adjusted_close handles stock splits and dividend adjustments</li>
+      <li>bid and ask fields for spread and execution cost modelling</li>
+      <li>Enables RSI, MACD, Bollinger Bands, and all standard TA indicators</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#e3b341"></div>
+      <span class="change-card-title">PARQUET_NLP_SENTIMENT — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="fix">source_document_id replaced by document_id FK to DOCUMENT_REGISTRY</li>
+      <li>source_type enum: NEWS / SEC_FILING / EARNINGS_CALL / SOCIAL_MEDIA</li>
+      <li>positive_score and negative_score stored separately alongside compound</li>
+      <li>Allows source-weighted sentiment (8-K > Reddit post)</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#ffa657"></div>
+      <span class="change-card-title">AI_RECOMMENDATION_LOG — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="critical">Fixes CRITICAL: model_version added for reproducibility</li>
+      <li class="critical">Fixes CRITICAL: context_snapshot_id links to data used at inference time</li>
+      <li>expires_at prevents stale recommendations surfacing in UI</li>
+      <li>comparison_session_id FK traces which session triggered this recommendation</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#58a6ff"></div>
+      <span class="change-card-title">RISK_SETTINGS — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="fix">risk_tolerance_level: CONSERVATIVE / MODERATE / AGGRESSIVE / SPECULATIVE</li>
+      <li>investment_horizon_months replaces implicit assumption</li>
+      <li>liquidity_preference and sector_exclusions feed AI prompt directly</li>
+      <li>valid_from / valid_to enables SCD Type 2 history of risk profile changes</li>
+    </ul>
+  </div>
+
+  <div class="change-card">
+    <div class="change-card-header">
+      <div class="entity-dot" style="background:#3fb950"></div>
+      <span class="change-card-title">POSITION_JOURNAL — Updated</span>
+    </div>
+    <ul class="change-list">
+      <li class="fix">is_current boolean + partial unique index prevents duplicate open rows</li>
+      <li>realized_pnl and unrealized_pnl critical for AI portfolio health assessment</li>
+      <li>position_currency fixes multi-currency P&L aggregation bug</li>
+      <li>portfolio_id FK connects positions to user goals</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- TAB 3: RAW CODE -->
+<div id="code-view" class="tab-content">
+  <div class="code-wrapper">
+    <div class="code-bar">
+      <div class="code-bar-left">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+        <span class="code-lang">mermaid — erDiagram</span>
+      </div>
+      <button class="copy-btn" onclick="copyCode()">Copy</button>
+    </div>
+    <pre id="raw-code">erDiagram
+    %% =============================================
+    %% MARIADB OLTP — Core Identity &amp; Auth
+    %% =============================================
+    USER_IDENTITY {
+        uuid id PK
+        string email
+        string password_hash
+        datetime created_at
+        datetime updated_at
+    }
+
+    RISK_SETTINGS {
+        uuid id PK
+        uuid user_id FK
+        string risk_tolerance_level
+        int investment_horizon_months
+        string liquidity_preference
+        json sector_exclusions
+        decimal max_drawdown_pct
+        decimal max_exposure_limit
+        datetime valid_from
+        datetime valid_to
+    }
+
+    PORTFOLIO {
+        uuid id PK
+        uuid user_id FK
+        string name
+        string base_currency
+        string objective
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Asset Catalogue
+    %% =============================================
+    ASSET_CLASS_LOOKUP {
+        uuid id PK
+        string class_code
+        string class_name
+        json comparable_with
+    }
+
+    ASSET_MASTER {
+        uuid asset_id PK
+        string ticker_symbol
+        uuid asset_class_id FK
+        string exchange
+        string denomination_currency
+        string sector
+        string industry
+        string country_code
+        string status
+        datetime status_updated_at
+    }
+
+    ASSET_SUBTYPE_BOND {
+        uuid id PK
+        uuid asset_id FK
+        date maturity_date
+        decimal coupon_rate
+        string issuer_type
+        string credit_rating
+    }
+
+    ASSET_SUBTYPE_FOREX {
+        uuid id PK
+        uuid asset_id FK
+        string base_currency
+        string quote_currency
+    }
+
+    MACRO_INDICATOR_MASTER {
+        uuid id PK
+        string series_code
+        string name
+        string source
+        string unit
+        string country_code
+        string release_frequency
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Portfolio &amp; Trading
+    %% =============================================
+    WATCHLIST {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        decimal sentiment_trigger_high
+        decimal sentiment_trigger_low
+        decimal price_trigger_high
+        decimal price_trigger_low
+    }
+
+    ORDER_GROUP {
+        uuid id PK
+        uuid user_id FK
+        string strategy_label
+        datetime created_at
+    }
+
+    TRANSACTION_LEDGER {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        uuid order_group_id FK
+        string action_type
+        decimal quantity
+        decimal execution_price
+        string settlement_currency
+        decimal commission
+        decimal tax_withheld
+        string order_type
+        datetime executed_at
+    }
+
+    POSITION_JOURNAL {
+        uuid id PK
+        uuid user_id FK
+        uuid portfolio_id FK
+        uuid asset_id FK
+        decimal net_quantity
+        decimal average_cost
+        string position_currency
+        decimal realized_pnl
+        decimal unrealized_pnl
+        boolean is_current
+        datetime valid_from
+        datetime valid_to
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — AI Layer
+    %% =============================================
+    AI_RECOMMENDATION_LOG {
+        uuid id PK
+        uuid user_id FK
+        uuid asset_id FK
+        uuid comparison_session_id FK
+        string recommended_action
+        decimal confidence_score
+        json driving_factors
+        string model_version
+        string context_snapshot_id
+        datetime expires_at
+        datetime generated_at
+    }
+
+    RECOMMENDATION_FEEDBACK {
+        uuid id PK
+        uuid recommendation_id FK
+        boolean user_acted
+        datetime action_taken_at
+        decimal outcome_pct_7d
+        decimal outcome_pct_30d
+        int user_rating
+        datetime recorded_at
+    }
+
+    COMPARISON_SESSION {
+        uuid id PK
+        uuid user_id FK
+        decimal budget
+        int horizon_months
+        json assets_compared
+        uuid winner_asset_id FK
+        datetime generated_at
+    }
+
+    ALERT_QUEUE {
+        uuid id PK
+        uuid user_id FK
+        uuid watchlist_id FK
+        string alert_type
+        decimal trigger_value
+        datetime triggered_at
+        datetime delivered_at
+        string channel
+        string status
+    }
+
+    DOCUMENT_REGISTRY {
+        uuid id PK
+        uuid asset_id FK
+        string doc_type
+        string source_url
+        datetime filed_at
+        uuid ingestion_id FK
+        string raw_text_path
+        string embedding_status
+    }
+
+    %% =============================================
+    %% MARIADB OLTP — Ingestion
+    %% =============================================
+    INGESTION_LOG {
+        uuid ingestion_id PK
+        string source_api
+        string file_path_reference
+        string schema_hash
+        datetime fetched_at
+        string status
+    }
+
+    PARQUET_MANIFEST {
+        uuid id PK
+        uuid ingestion_id FK
+        string parquet_file_path
+        int row_count
+        string schema_hash
+        datetime written_at
+        string validation_status
+    }
+
+    %% =============================================
+    %% DUCKDB OLAP — Parquet Views
+    %% =============================================
+    PARQUET_TICK_DATA {
+        uuid asset_id FK
+        datetime tick_time
+        decimal open
+        decimal high
+        decimal low
+        decimal close
+        decimal adjusted_close
+        int volume
+        decimal bid
+        decimal ask
+        uuid ingestion_id FK
+    }
+
+    PARQUET_MACRO_SERIES {
+        uuid indicator_id FK
+        datetime observation_date
+        decimal reported_value
+        uuid ingestion_id FK
+    }
+
+    PARQUET_NLP_SENTIMENT {
+        uuid asset_id FK
+        uuid document_id FK
+        datetime doc_timestamp
+        string source_type
+        decimal compound_polarity_score
+        decimal positive_score
+        decimal negative_score
+        uuid ingestion_id FK
+    }
+
+    %% =============================================
+    %% RELATIONSHIPS — User &amp; Portfolio
+    %% =============================================
+    USER_IDENTITY ||--o{ RISK_SETTINGS : governs
+    USER_IDENTITY ||--o{ PORTFOLIO : owns
+    USER_IDENTITY ||--o{ WATCHLIST : monitors
+    USER_IDENTITY ||--o{ TRANSACTION_LEDGER : executes
+    USER_IDENTITY ||--o{ POSITION_JOURNAL : holds
+    USER_IDENTITY ||--o{ AI_RECOMMENDATION_LOG : receives
+    USER_IDENTITY ||--o{ COMPARISON_SESSION : initiates
+    USER_IDENTITY ||--o{ ORDER_GROUP : creates
+
+    PORTFOLIO ||--o{ WATCHLIST : scopes
+    PORTFOLIO ||--o{ TRANSACTION_LEDGER : contains
+    PORTFOLIO ||--o{ POSITION_JOURNAL : tracks
+
+    %% =============================================
+    %% RELATIONSHIPS — Asset Catalogue
+    %% =============================================
+    ASSET_CLASS_LOOKUP ||--o{ ASSET_MASTER : classifies
+    ASSET_MASTER ||--o| ASSET_SUBTYPE_BOND : extends
+    ASSET_MASTER ||--o| ASSET_SUBTYPE_FOREX : extends
+    ASSET_MASTER ||--o{ WATCHLIST : targets
+    ASSET_MASTER ||--o{ TRANSACTION_LEDGER : trades
+    ASSET_MASTER ||--o{ POSITION_JOURNAL : defines
+    ASSET_MASTER ||--o{ AI_RECOMMENDATION_LOG : analyzes
+    ASSET_MASTER ||--o{ COMPARISON_SESSION : evaluates
+    ASSET_MASTER ||--o{ DOCUMENT_REGISTRY : documents
+    ASSET_MASTER ||--o{ PARQUET_TICK_DATA : structures
+    ASSET_MASTER ||--o{ PARQUET_NLP_SENTIMENT : structures
+
+    MACRO_INDICATOR_MASTER ||--o{ PARQUET_MACRO_SERIES : defines
+
+    %% =============================================
+    %% RELATIONSHIPS — Trading &amp; Orders
+    %% =============================================
+    ORDER_GROUP ||--o{ TRANSACTION_LEDGER : groups
+
+    %% =============================================
+    %% RELATIONSHIPS — AI Layer
+    %% =============================================
+    AI_RECOMMENDATION_LOG ||--o| RECOMMENDATION_FEEDBACK : evaluated_by
+    COMPARISON_SESSION ||--o{ AI_RECOMMENDATION_LOG : generates
+
+    WATCHLIST ||--o{ ALERT_QUEUE : triggers
+
+    DOCUMENT_REGISTRY ||--o{ PARQUET_NLP_SENTIMENT : sourced_from
+
+    %% =============================================
+    %% RELATIONSHIPS — Ingestion
+    %% =============================================
+    INGESTION_LOG ||--o{ PARQUET_TICK_DATA : maps_to_file
+    INGESTION_LOG ||--o{ PARQUET_MACRO_SERIES : maps_to_file
+    INGESTION_LOG ||--o{ PARQUET_NLP_SENTIMENT : maps_to_file
+    INGESTION_LOG ||--o{ DOCUMENT_REGISTRY : indexes
+    INGESTION_LOG ||--o{ PARQUET_MANIFEST : validated_by</pre>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#161b22',
+      primaryColor: '#1f3a5f',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#58a6ff',
+      lineColor: '#8b949e',
+      secondaryColor: '#2d1e47',
+      tertiaryColor: '#1a3a22',
+      edgeLabelBackground: '#21262d',
+      attributeBackgroundColorEven: '#1b2835',
+      attributeBackgroundColorOdd: '#161b22',
+      fontFamily: 'JetBrains Mono, monospace',
+      fontSize: '13px',
+    },
+    er: {
+      diagramPadding: 32,
+      layoutDirection: 'TB',
+      minEntityWidth: 100,
+      minEntityHeight: 75,
+      entityPadding: 15,
+      useMaxWidth: true,
+    }
+  });
+
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(name + '-view').classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function copyCode() {
+    const code = document.getElementById('raw-code').innerText
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = 'Copied!';
+      btn.style.color = 'var(--green)';
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 2000);
+    });
+  }
+</script>
+</body>
+</html>

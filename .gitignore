@@ -1,21 +1,54 @@
-model/
-Archived_Files/
-*.pyc
+# =============================================================
+# FinTrac V2 — .gitignore
+# =============================================================
+
+# ── SECRETS ───────────────────────────────────────────────────
 .env
-# Python
+*.pem
+*.key
+
+# ── PYTHON ────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
 venv/
-.env
-# Jupyter Lab
+.venv/
+env/
+.Python
+
+# ── DATA LAKE (heavy files, never commit) ─────────────────────
+data/
+*.parquet
+*.db
+*.sqlite
+
+# ── ML MODELS (large binary weights) ──────────────────────────
+model/
+
+# ── ARCHIVE ───────────────────────────────────────────────────
+Archived_Files/
+
+# ── JUPYTER ───────────────────────────────────────────────────
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
 *.ipynb
-# Data & Models
-engine/models/
-*.db
-static/charts/*.png
-# System/IDE
+
+# ── SYSTEM / IDE ──────────────────────────────────────────────
 .DS_Store
 .vscode/
+.idea/
+*.swp
+*.swo
+
+# ── TESTING & COVERAGE ────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ── BUILD ─────────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
