@@ -1,6 +1,18 @@
 import os
 from pathlib import Path
 
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    OLLAMA_MODEL: str = "mistral"
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+
 # Base Directory Resolution
 # Assumes this file is in FinTrac_V1_0/src/
 BASE_DIR = Path(__file__).resolve().parent.parent
