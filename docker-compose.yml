@@ -1,14 +1,9 @@
 # =============================================================
 # FinTrac V2 — docker-compose.yml
-# Spins up: MariaDB + Redis for local development
-# Ollama runs as a system service (outside Docker) — see README
 # =============================================================
-
-version: '3.8'
 
 services:
 
-  # ── MariaDB ─────────────────────────────────────────────────
   mariadb:
     image: mariadb:11.3
     container_name: fintrac_mariadb
@@ -29,7 +24,6 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Redis ────────────────────────────────────────────────────
   redis:
     image: redis:7.2-alpine
     container_name: fintrac_redis
@@ -44,7 +38,6 @@ services:
       timeout: 5s
       retries: 3
 
-  # ── FastAPI App ──────────────────────────────────────────────
   fintrac:
     build: .
     container_name: fintrac_api
@@ -54,18 +47,17 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src:/app/src            # hot-reload source code
-      - ./migrations:/app/migrations
-      - ./data:/app/data          # Parquet lake + ChromaDB persistence
+      - ./src:/app/src
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mariadb:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # --reload enables hot-reload in development
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
-# ── Named Volumes ────────────────────────────────────────────
 volumes:
   mariadb_data:
   redis_data:

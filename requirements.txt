@@ -41,7 +41,8 @@ numpy>=1.26                # Numerical ops
 #   (add langchain-anthropic and anthropic to prod requirements)
 # --------------------------------------------------------------
 langchain>=0.2                  # Agent orchestration framework
-langchain-community>=0.2        # Includes OllamaLLM and OllamaEmbeddings
+langchain-community>=0.2        #ollama and langchain
+langchain-ollama>=0.1
 langchain-core>=0.2             # Base abstractions (LCEL, runnables)
 ollama>=0.2                     # Ollama Python client (direct API access)
 chromadb>=0.5                   # Vector store for RAG — local, zero-infra
