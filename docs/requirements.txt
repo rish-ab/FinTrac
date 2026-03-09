@@ -1,0 +1,73 @@
+# =============================================================
+# FinTrac V2 — requirements.txt
+# Python 3.11+
+# Local AI dev stack — Ollama backend for Development
+# Pin versions before going to production: pip freeze > requirements.lock
+# =============================================================
+
+# ── DATABASE ──────────────────────────────────────────────────
+sqlalchemy>=2.0            # ORM for MariaDB
+pymysql>=1.1               # MariaDB / MySQL driver for SQLAlchemy
+alembic>=1.13              # Schema migrations
+duckdb>=0.10               # OLAP engine for Parquet queries
+cryptography>=42.0         # Required by PyMySQL for auth plugins
+
+# ── DATA INGESTION & PARQUET ──────────────────────────────────
+yfinance>=0.2.40           # Equity tick data (OHLCV)
+pandas>=2.2                # DataFrame manipulation
+pyarrow>=16.0              # Parquet read/write engine
+fredapi>=0.5               # FRED macro series API client
+requests>=2.31             # SEC EDGAR HTTP calls
+httpx>=0.27                # Async HTTP (for concurrent ingestion)
+tenacity>=8.3              # Retry logic for flaky APIs
+
+# ── ML / NLP ──────────────────────────────────────────────────
+transformers>=4.41         # FinBERT + tokenizer
+torch>=2.3                 # PyTorch backend for FinBERT
+sentence-transformers>=3.0 # Document embeddings for RAG pipeline
+numpy>=1.26                # Numerical ops
+
+# ── AI AGENT — LOCAL DEV (Ollama) ─────────────────────────────
+# Ollama must be installed separately: https://ollama.com/download
+# Recommended models to pull:
+#   ollama pull llama3.1          <- general reasoning, good tool-use
+#   ollama pull mistral           <- fast, low RAM, good for dev iteration
+#   ollama pull phi3:medium       <- lightweight if RAM is limited
+#   ollama pull nomic-embed-text  <- local embeddings (replaces OpenAI ada-002)
+#
+# To swap to Anthropic in production, replace OllamaLLM with:
+#   from langchain_anthropic import ChatAnthropic
+#   llm = ChatAnthropic(model="claude-opus-4-6")
+#   (add langchain-anthropic and anthropic to prod requirements)
+# --------------------------------------------------------------
+langchain>=0.2                  # Agent orchestration framework
+langchain-community>=0.2        # Includes OllamaLLM and OllamaEmbeddings
+langchain-core>=0.2             # Base abstractions (LCEL, runnables)
+ollama>=0.2                     # Ollama Python client (direct API access)
+chromadb>=0.5                   # Vector store for RAG — local, zero-infra
+
+# ── API LAYER ─────────────────────────────────────────────────
+fastapi>=0.111             # REST API framework
+uvicorn[standard]>=0.30    # ASGI server
+pydantic>=2.7              # Request/response schema validation
+pydantic-settings>=2.3     # Settings management (reads .env)
+
+# ── CACHE & QUEUE ─────────────────────────────────────────────
+redis>=5.0                 # Cache (prices, sessions) + alert queue
+
+# ── UTILITIES ─────────────────────────────────────────────────
+python-dotenv>=1.0         # Load .env into os.environ
+loguru>=0.7                # Structured logging
+schedule>=1.2              # Lightweight job scheduler
+pytz>=2024.1               # Timezone-aware datetimes for market hours
+
+# ── TESTING ───────────────────────────────────────────────────
+pytest>=8.2
+pytest-asyncio>=0.23       # Async test support for FastAPI routes
+pytest-cov>=5.0            # Coverage reports
+httpx>=0.27                # Also used as async test client for FastAPI
+great-expectations>=0.18   # Data quality assertions on ingestion output
+
+# ── ADDED: DB ASYNC DRIVER + LANGCHAIN OLLAMA FIX ─────────────
+aiomysql>=0.2              # Async MySQL/MariaDB driver for SQLAlchemy
+langchain-ollama>=0.1      # Replaces OllamaLLM from langchain_community

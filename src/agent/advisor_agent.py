@@ -27,6 +27,7 @@ from langchain_ollama import OllamaLLM
 from loguru import logger
 from pydantic import BaseModel
 
+from src.agent.rag_pipeline import retrieve_context, format_rag_context
 from src.agent.prompts import (
     INVESTMENT_PROMPT,
     COMPARISON_PROMPT,
@@ -176,6 +177,25 @@ async def get_investment_verdict(
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
 
+    # ── RAG RETRIEVAL ─────────────────────────────────────────
+    # Retrieve the most relevant passages from embedded SEC filings.
+    # Uses the user's question (or a default) as the search query.
+    # If no documents are embedded yet for this ticker, returns an
+    # empty list and the prompt falls back gracefully.
+    rag_query = (
+        query.question
+        or f"{snapshot.ticker} financial risks outlook revenue"
+    )
+    passages   = await retrieve_context(rag_query, snapshot.ticker, top_k=5)
+    rag_context = format_rag_context(passages)
+
+    if passages:
+        logger.info(
+            f"Injecting {len(passages)} RAG passages into prompt for "
+            f"{snapshot.ticker} (top source: {passages[0]['doc_type']} "
+            f"{passages[0]['filed_at'][:10]})"
+        )
+
     # ── BUILD PROMPT ──────────────────────────────────────────
     # format_messages() substitutes all {placeholders} with real values
     # and returns a list of LangChain message objects ready for the LLM.
@@ -206,6 +226,7 @@ async def get_investment_verdict(
         avg_volume      = f"{snapshot.avg_volume/1e6:.1f}M" if snapshot.avg_volume else "N/A",
         analyst_target_price = snapshot.analyst_target_price or "N/A",
         projection_text = format_projection(projection),
+        rag_context     = rag_context,
     )
 
     # Convert LangChain message objects to a single string for OllamaLLM

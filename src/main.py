@@ -21,9 +21,11 @@ async def lifespan(app: FastAPI):
     from src.agent.advisor_agent import ping_ollama
     await ping_ollama()
 
-    # TODO: warm up ChromaDB
-    # from src.agent.rag_pipeline import init_vector_store
-    # await init_vector_store()
+    # Initialise ChromaDB and process any pending documents from last session
+    from src.agent.rag_pipeline import init_vector_store
+    from src.db.session import AsyncSessionFactory
+    async with AsyncSessionFactory() as startup_session:
+        await init_vector_store(startup_session)
 
     print("FinTrac ready.")
     yield

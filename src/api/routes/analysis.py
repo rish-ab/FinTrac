@@ -18,8 +18,12 @@
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.db.session import get_db
+from src.ingestion.document_ingester import ingest_filings_for_ticker
 
 from src.api.schemas.investment import (
     InvestmentQuery,
@@ -131,6 +135,24 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
     # Returns None if Ollama is unreachable — the response still
     # goes out, just without the AI fields populated.
     verdict = await get_investment_verdict(query, market_snapshot, projection)
+
+    # ── SEC INGESTION (background, own session) ───────────────
+    # Fired AFTER the verdict so any exception here cannot affect
+    # the response. Uses its own DB session — never share the
+    # request session with a background task because the request
+    # session closes when the response is sent, which would crash
+    # the task mid-write and corrupt the DB transaction.
+    async def _background_ingest():
+        from src.db.session import AsyncSessionFactory
+        async with AsyncSessionFactory() as bg_session:
+            try:
+                await ingest_filings_for_ticker(
+                    query.ticker, bg_session, max_filings=3
+                )
+            except Exception as e:
+                logger.error(f"Background SEC ingestion failed for {query.ticker}: {e}")
+
+    asyncio.create_task(_background_ingest())
 
     return InvestmentAnalysisResponse(
         query               = query,

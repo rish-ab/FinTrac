@@ -106,6 +106,8 @@ Analyst target:  ${analyst_target_price}
 === BUDGET PROJECTION (historical CAGR estimate) ===
 {projection_text}
 
+{rag_context}
+
 Respond ONLY with the JSON object. No preamble, no explanation outside the JSON.
 """),
 ])
