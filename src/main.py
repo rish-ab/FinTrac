@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import analysis
+from src.api.routes import auth
+from src.api.routes import portfolio
 
 
 @asynccontextmanager
@@ -59,6 +61,18 @@ app.include_router(
     analysis.router,
     prefix="/api/v1/analysis",
     tags=["Analysis"],
+)
+
+app.include_router(
+    auth.router,
+    prefix="/api/v1/auth",
+    tags=["Auth"],
+)
+
+app.include_router(
+    portfolio.router,
+    prefix="/api/v1/portfolios",
+    tags=["Portfolios"],
 )
 
 

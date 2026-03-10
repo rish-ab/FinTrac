@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # ── REDIS ──────────────────────────────────────────────────
     REDIS_URL:   str = "redis://redis:6379/0"
 
+    # ── JWT ──────────────────────────────────────────────────
+    JWT_SECRET_KEY: str = "dev-secret-change-in-production"
+
     # ── APP ────────────────────────────────────────────────────
     APP_ENV:     str = "development"
     LOG_LEVEL:   str = "INFO"

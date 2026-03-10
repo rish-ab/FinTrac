@@ -71,3 +71,10 @@ great-expectations>=0.18   # Data quality assertions on ingestion output
 # ── ADDED: DB ASYNC DRIVER + LANGCHAIN OLLAMA FIX ─────────────
 aiomysql>=0.2              # Async MySQL/MariaDB driver for SQLAlchemy
 langchain-ollama>=0.1      # Replaces OllamaLLM from langchain_community
+
+# ── ADDED: JWT AUTH ────────────────────────────────────────────
+python-jose[cryptography]>=3.3   # JWT encode/decode
+passlib[bcrypt]>=1.7             # Password hashing
+bcrypt==4.0.1                     # Pin to avoid passlib wrap-bug detection crash
+python-multipart>=0.0.9          # Required for OAuth2 form parsing
+email-validator>=2.1              # Required for Pydantic EmailStr
