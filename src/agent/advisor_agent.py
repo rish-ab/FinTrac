@@ -186,7 +186,7 @@ async def get_investment_verdict(
         query.question
         or f"{snapshot.ticker} financial risks outlook revenue"
     )
-    passages   = await retrieve_context(rag_query, snapshot.ticker, top_k=5)
+    passages   = await retrieve_context(rag_query, snapshot.ticker, top_k=2)
     rag_context = format_rag_context(passages)
 
     if passages:

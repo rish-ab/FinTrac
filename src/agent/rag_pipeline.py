@@ -111,8 +111,8 @@ _embeddings = OllamaEmbeddings(
 
 def _chunk_text(
     text:       str,
-    chunk_size: int = 500,
-    overlap:    int = 50,
+    chunk_size: int = 300,
+    overlap:    int = 30,
 ) -> list[str]:
     """
     Split text into overlapping word-based chunks.
@@ -378,21 +378,22 @@ async def retrieve_context(
 
 def format_rag_context(passages: list[dict]) -> str:
     """
-    Format retrieved passages into a readable prompt block.
-    Each passage is labelled with its source and filing date
-    so Mistral can cite sources in its reasoning.
+    Format retrieved passages into a compact prompt block.
+    Limited to 2 passages, truncated to 300 chars each —
+    Mistral 7B loses instruction-following with large contexts.
     """
     if not passages:
-        return "No SEC filing context available for this ticker."
+        return ""
 
-    lines = ["=== RETRIEVED FILING CONTEXT (most relevant passages) ==="]
-    for i, p in enumerate(passages, 1):
+    # Take top 2 only and truncate each to 300 chars
+    top = passages[:2]
+    lines = ["=== RELEVANT FILING EXCERPTS ==="]
+    for i, p in enumerate(top, 1):
+        text = p["text"][:300].strip()
         lines.append(
-            f"\n[Source {i}: {p['doc_type']} filed {p['filed_at'][:10]} "
-            f"| relevance: {p['similarity']:.0%}]\n{p['text']}"
+            f"[{p['doc_type']} {p['filed_at'][:10]}]: {text}..."
         )
-
-    lines.append("\n=== END FILING CONTEXT ===")
+    lines.append("=== END EXCERPTS ===")
     return "\n".join(lines)
 
 
