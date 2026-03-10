@@ -144,13 +144,16 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
     # the task mid-write and corrupt the DB transaction.
     async def _background_ingest():
         from src.db.session import AsyncSessionFactory
+        from src.db.asset_seeder import ensure_asset_exists
         async with AsyncSessionFactory() as bg_session:
             try:
+                # Seed AssetMaster first so watchlist + document FK works
+                await ensure_asset_exists(market_snapshot, bg_session)
                 await ingest_filings_for_ticker(
                     query.ticker, bg_session, max_filings=3
                 )
             except Exception as e:
-                logger.error(f"Background SEC ingestion failed for {query.ticker}: {e}")
+                logger.error(f"Background ingest failed for {query.ticker}: {e}")
 
     asyncio.create_task(_background_ingest())
 
