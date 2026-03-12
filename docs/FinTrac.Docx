@@ -1,0 +1,55 @@
+Deep Dive: The Mathematics and Algorithms of FinTrac V2
+1. The Mathematical Engine: DuckDB & Columnar Vectorization
+
+Calculating a 200-day Simple Moving Average (SMA) across millions of historical tick data points is fundamentally an array traversal problem. If this were executed in a standard row-based database (like SQLite), the engine would iterate row-by-row, loading irrelevant columns into memory and causing massive I/O bottlenecks.
+
+FinTrac bypasses this by utilizing DuckDB mapped directly over Parquet files.
+The Mechanics of Execution
+
+Parquet is a columnar storage format that maintains internal metadata called zone maps (min/max values and null counts for data chunks). When the backend requests an SMA calculation for a specific timeframe, DuckDB executes predicate pushdown. It reads the Parquet footers and completely skips loading chunks of data outside the requested date range into memory.
+
+Once the correct arrays are loaded, DuckDB does not use standard for loops. It executes vectorized query processing. By passing batches of columnar data directly into the CPU cache, it processes the arrays using SIMD (Single Instruction, Multiple Data) instructions, completing the math in milliseconds with a minimal memory footprint.
+The Core Calculus
+
+The foundational trend line is the Simple Moving Average:
+SMA200​=2001​i=0∑199​Pricet−i​
+
+The engine then calculates the Trend Extension, which acts as a normalized proxy for standard deviation, measuring how far the current price (Pt​) has detached from its historical baseline:
+Extension=SMA200​Pricet​−SMA200​​
+
+If Extension>0.15, the algorithm applies a strict risk penalty. This mathematical boundary is deterministic; it cannot hallucinate and provides a rigid defense against buying into overextended momentum bubbles.
+
+Caveats of this approach:
+Moving averages are inherently lagging indicators. A 200-day SMA requires 200 days of historical data to react, meaning mathematical crossover strategies are highly susceptible to "whipsawing" in sideways, volatile markets, which can degrade a portfolio through continuous false-positive signals.
+2. The AI Layer: Inside the Transformer Matrix
+
+Because mathematical indicators lag, FinTrac employs a Natural Language Processing (NLP) layer to interpret real-time fundamental corporate reality. This is handled by FinBERT, a BERT-based transformer model explicitly fine-tuned on the Financial PhraseBank.
+Self-Attention and Contextual Understanding
+
+When the RAG pipeline feeds an SEC 10-K excerpt into FinBERT, the text is tokenized into sub-word integers. The Transformer's self-attention mechanism calculates a matrix of weights, determining how strongly each word relates to every other word in the sequence.
+
+This is why FinBERT outperforms generic keyword scanners. It understands context. It mathematically recognizes that the word "cutting" in the phrase "cutting operational liabilities" is a positive financial signal, whereas "cutting revenue guidance" is highly negative.
+The Math of Sentiment Extraction (Logits to Probabilities)
+
+FinBERT is a sequence classification model. At its final neural network layer, it outputs raw, unnormalized numbers known as logits for three distinct classes: [Positive, Negative, Neutral].
+
+To make these logits usable for our trading logic, the backend applies a Softmax function:
+σ(zi​)=∑j=1K​ezj​ezi​​
+
+This exponential transformation converts the raw logits into a clean probability distribution that sums to exactly 1.0. For example, a raw output might be transformed into:
+
+    prob_positive: 0.05
+
+    prob_negative: 0.88
+
+    prob_neutral: 0.07
+
+The AI Veto Implementation
+
+Once the Softmax probabilities are calculated, the backend isolates the prob_negative tensor. If the negative probability exceeds the specific threshold defined by the user's risk tolerance, the system issues an "AI Veto." This completely nullifies any positive mathematical momentum calculated by DuckDB, halting the trade recommendation based on fundamental corporate risk.
+
+Caveats of this approach:
+While FinBERT is highly accurate, its base weights are static. If the macroeconomic environment introduces entirely new regulatory frameworks or novel jargon, the model's self-attention layers will lack the necessary context to accurately classify the sentiment. Furthermore, processing 512-token chunks requires non-trivial computational overhead; scaling this to thousands of concurrent users would heavily tax the local CPU/GPU without aggressive load balancing and request queuing.
+
+*** Why This Dual-Architecture Works:
+This architecture represents a strict separation of concerns. LLMs are exceptional at semantic reasoning but notoriously terrible at doing math. By forcing DuckDB to handle the exact vectorized calculus, and forcing FinBERT to handle only the semantic sentiment classification, FinTrac ensures that both systems are operating exactly within their theoretical strengths.
