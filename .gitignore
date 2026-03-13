@@ -52,3 +52,8 @@ coverage.xml
 dist/
 build/
 *.egg-info/
+
+# ── FRONTEND ──────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local

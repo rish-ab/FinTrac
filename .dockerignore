@@ -44,3 +44,7 @@ Archived_Files/
 .DS_Store
 .vscode/
 .idea/
+
+# ── FRONTEND ──────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
