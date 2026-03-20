@@ -56,4 +56,5 @@ build/
 # ── FRONTEND ──────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
-frontend/.env.local
+frontend/.env.localfrontend/node_modules/
+frontend/dist/
