@@ -32,7 +32,10 @@ async def lifespan(app: FastAPI):
     from src.agent.rag_pipeline import init_vector_store
     from src.db.session import AsyncSessionFactory
     async with AsyncSessionFactory() as startup_session:
-        await init_vector_store(startup_session)
+        try:
+            await init_vector_store(startup_session)
+        except Exception as e:
+            print(f"Vector store init skipped: {e}")
 
     # Start alert consumer (reads Redis Stream, marks alerts delivered)
     from src.engine.alert_consumer import run_consumer

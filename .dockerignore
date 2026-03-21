@@ -48,3 +48,12 @@ Archived_Files/
 # ── FRONTEND ──────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
+
+# Frontend build artifacts (not needed in image)
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Git
+.git/
+.gitignore
