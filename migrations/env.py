@@ -57,6 +57,16 @@ from src.db.models import (  # noqa: F401 — imports needed for side effects
     DocumentRegistry,
 )
 
+# Import V3 models for self-calibration
+from src.db.v3_models import (  # noqa: F401
+    PredictionRecord,
+    PredictionOutcome,
+    MarketEvent,
+    PredictionAttribution,
+    CalibrationProfile,
+    ModelImprovementLog,
+)
+
 from src.config import settings
 
 # Alembic config object (reads alembic.ini)
