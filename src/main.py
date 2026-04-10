@@ -9,7 +9,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import analysis, auth, portfolio, alerts
-
+from src.api.routes import dashboard
+from src.api.routes import assets
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -79,7 +80,8 @@ app.include_router(analysis.router,  prefix="/api/v1/analysis",   tags=["Analysi
 app.include_router(auth.router,      prefix="/api/v1/auth",        tags=["Auth"])
 app.include_router(portfolio.router, prefix="/api/v1/portfolios",  tags=["Portfolios"])
 app.include_router(alerts.router,    prefix="/api/v1/alerts",      tags=["Alerts"])
-
+app.include_router(dashboard.router, prefix="/api/v1")  
+app.include_router(assets.router, prefix="/api/v1")
 
 @app.get("/health", tags=["Health"])
 async def health():

@@ -26,6 +26,11 @@ export default function Navbar() {
           }>
             Portfolios
           </NavLink>
+          <NavLink to="/calibration" className={({ isActive }) =>
+            `nav-link ${isActive ? 'active' : ''}`
+          }>
+            Calibration
+          </NavLink>
           <NavLink to="/watchlist" className={({ isActive }) =>
             `nav-link ${isActive ? 'active' : ''}`
           }>

@@ -33,7 +33,7 @@ from src.api.schemas.investment import (
     InvestmentAnalysisResponse,
     MarketSnapshot,
 )
-from src.ingestion.yf_client import fetch_market_snapshot, fetch_budget_projection
+from src.ingestion.yf_client_v2 import fetch_market_snapshot, calculate_budget_projection
 from src.agent.advisor_agent import get_investment_verdict, get_comparison_verdict
 
 
@@ -115,7 +115,7 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
 
     market_snapshot, projection = await asyncio.gather(
         fetch_market_snapshot(query.ticker),
-        fetch_budget_projection(query.ticker, query.budget, projection_horizon),
+        calculate_budget_projection(query.ticker, query.budget, projection_horizon),
     )
 
     # ── VALIDATE TICKER ───────────────────────────────────────
