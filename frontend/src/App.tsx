@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage'
 import PortfolioPage from './pages/PortfolioPage'
 import WatchlistPage from './pages/WatchlistPage'
 import CalibrationDashboard from './pages/CalibrationDashboard'
+import DashboardWithAssets from './pages/DashboardWithAssets'
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +30,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <AppLayout><DashboardPage /></AppLayout>
+              <AppLayout><DashboardWithAssets /></AppLayout>
             </ProtectedRoute>
           } />
           <Route path="/calibration" element={

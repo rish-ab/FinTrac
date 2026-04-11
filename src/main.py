@@ -29,14 +29,26 @@ async def lifespan(app: FastAPI):
     from src.agent.advisor_agent import ping_ollama
     await ping_ollama()
 
-    # ChromaDB + pending document embedding
-    from src.agent.rag_pipeline import init_vector_store
+    # ChromaDB - initialize collection only (fast, no embedding)
+    from src.agent.rag_pipeline import init_chroma_collection
+    init_chroma_collection()
+
+    # Start background document embedding (non-blocking)
+    # Runs in background, won't block startup if Ollama is slow
+    from src.agent.rag_pipeline import background_embed_pending_documents
     from src.db.session import AsyncSessionFactory
-    async with AsyncSessionFactory() as startup_session:
+    
+    async def _run_background_embedding():
+        """Background task: process pending document embeddings"""
         try:
-            await init_vector_store(startup_session)
+            # Wait 5 seconds to let server start fully
+            await asyncio.sleep(5)
+            async with AsyncSessionFactory() as bg_session:
+                await background_embed_pending_documents(bg_session, batch_size=10)
         except Exception as e:
-            print(f"Vector store init skipped: {e}")
+            print(f"Background embedding error: {e}")
+    
+    embedding_task = asyncio.create_task(_run_background_embedding())
 
     # Start alert consumer (reads Redis Stream, marks alerts delivered)
     from src.engine.alert_consumer import run_consumer
@@ -52,6 +64,7 @@ async def lifespan(app: FastAPI):
     # ── SHUTDOWN ──────────────────────────────────────────────
     consumer_task.cancel()
     scheduler_task.cancel()
+    embedding_task.cancel()
     await close_db()
     await close_redis()
     print("FinTrac shutdown complete.")

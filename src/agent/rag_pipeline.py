@@ -397,7 +397,90 @@ def format_rag_context(passages: list[dict]) -> str:
     return "\n".join(lines)
 
 
-# ── STARTUP INIT ───────────────────────────────────────────────────────────────
+# ── NON-BLOCKING STARTUP FUNCTIONS ────────────────────────────────────────────
+
+def init_chroma_collection() -> None:
+    """
+    Fast, synchronous ChromaDB initialization.
+    Just reports collection state without embedding.
+    Called during startup - MUST NOT BLOCK.
+    """
+    count = _collection.count()
+    logger.info(f"ChromaDB initialized — {count} vectors in collection")
+    if count == 0:
+        logger.info("Empty vector store — background embedding will process pending docs")
+
+
+async def background_embed_pending_documents(
+    db: AsyncSession,
+    batch_size: int = 10,
+    timeout_per_doc: int = 180,  # 3 minutes max per document
+) -> int:
+    """
+    Process pending document embeddings in background with timeout protection.
+    
+    This runs AFTER server startup completes.
+    Each document gets a timeout - if Ollama is slow/stuck, we skip it
+    and move on rather than blocking forever.
+    
+    Returns:
+        Number of successfully embedded chunks
+    """
+    pending = await get_pending_documents(db, limit=batch_size)
+
+    if not pending:
+        logger.info("No pending documents to embed in background")
+        return 0
+
+    logger.info(f"Background: Processing {len(pending)} pending documents")
+
+    total_chunks = 0
+    for doc in pending:
+        # Extract ticker from path
+        ticker = "UNKNOWN"
+        if doc.raw_text_path:
+            parts = Path(doc.raw_text_path).parts
+            if len(parts) >= 4:
+                ticker = parts[3]
+
+        filed_at_str = doc.filed_at.isoformat() if doc.filed_at else "unknown"
+
+        try:
+            # Wrap embedding with timeout
+            logger.info(f"Embedding {ticker} {doc.doc_type} with {timeout_per_doc}s timeout")
+            
+            chunks = await asyncio.wait_for(
+                embed_document(
+                    document_id   = doc.id,
+                    raw_text_path = doc.raw_text_path,
+                    ticker        = ticker,
+                    doc_type      = doc.doc_type,
+                    filed_at      = filed_at_str,
+                ),
+                timeout=timeout_per_doc
+            )
+            
+            await mark_document_embedded(doc.id, db)
+            total_chunks += chunks
+            logger.info(f"✓ Embedded {ticker} {doc.doc_type} ({chunks} chunks)")
+
+        except asyncio.TimeoutError:
+            error_msg = f"Embedding timed out after {timeout_per_doc}s"
+            logger.warning(f"⏱ {ticker} {doc.doc_type}: {error_msg}")
+            await mark_document_failed(doc.id, db, reason=error_msg)
+            
+        except Exception as e:
+            logger.error(f"✗ Failed to embed {ticker} {doc.doc_type}: {e}")
+            await mark_document_failed(doc.id, db, reason=str(e))
+
+    logger.info(
+        f"Background embedding complete: {total_chunks} chunks "
+        f"across {len(pending)} documents"
+    )
+    return total_chunks
+
+
+# ── STARTUP INIT (LEGACY - KEPT FOR COMPATIBILITY) ────────────────────────────
 
 async def init_vector_store(db: AsyncSession) -> None:
     """
