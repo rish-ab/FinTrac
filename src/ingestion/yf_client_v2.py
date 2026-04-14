@@ -2,7 +2,10 @@
 # src/ingestion/yf_client_v2.py
 #
 # Multi-asset yfinance client
-# Handles equities, FOREX, bonds, commodities, crypto
+# Handles equities, FOREX, bonds, commodities, crypto, indices
+#
+# V3 Phase 8: horizon_years changed from int to float to support
+# sub-year horizons (0.08 = 1 month, 0.25 = 3 months).
 # =============================================================
 
 import asyncio
@@ -22,19 +25,14 @@ from src.ingestion.asset_registry import (
 )
 
 
-# Thread pool for blocking yfinance calls
 _thread_pool = ThreadPoolExecutor(max_workers=3)
 
 
 # ── FETCH MARKET DATA ──────────────────────────────────────────────────────────
 
 def _fetch_ticker_sync(user_input: str) -> Optional[MarketSnapshot]:
-    """
-    Synchronous fetch — runs in thread pool.
-    Resolves ticker type and fetches appropriate data.
-    """
+    """Synchronous fetch — runs in thread pool."""
     try:
-        # Resolve what kind of asset this is
         yf_symbol, asset_class, metadata = resolve_ticker(user_input)
         
         logger.info(
@@ -49,12 +47,10 @@ def _fetch_ticker_sync(user_input: str) -> Optional[MarketSnapshot]:
             logger.warning(f"No data available for {yf_symbol}")
             return None
         
-        # Get display name
         company_name = get_asset_display_name(user_input, asset_class, metadata)
         if asset_class == AssetClass.EQUITY and "longName" in info:
             company_name = info["longName"]
         
-        # Build snapshot with asset-specific handling
         snapshot = _build_snapshot(
             ticker=user_input.upper(),
             yf_symbol=yf_symbol,
@@ -79,15 +75,10 @@ def _build_snapshot(
     company_name: str,
     metadata: dict,
 ) -> MarketSnapshot:
-    """
-    Build MarketSnapshot from yfinance info dict.
-    Different fields available for different asset classes.
-    """
-    # Common fields
+    """Build MarketSnapshot from yfinance info dict."""
     current_price = info.get("currentPrice") or info.get("regularMarketPrice")
     currency = info.get("currency", "USD")
     
-    # Asset-class specific handling
     if asset_class == AssetClass.EQUITY:
         return MarketSnapshot(
             ticker=ticker,
@@ -109,45 +100,34 @@ def _build_snapshot(
         )
     
     elif asset_class == AssetClass.FOREX:
-        # FOREX has different fields
         return MarketSnapshot(
             ticker=ticker,
             company_name=company_name,
             sector="Foreign Exchange",
-            industry=f"{metadata.get('base')} / {metadata.get('quote')}",
+            industry=f"{metadata.get('base', '???')} / {metadata.get('quote', '???')}",
             current_price=current_price,
             currency=metadata.get("quote", "USD"),
-            market_cap=None,  # N/A for FOREX
-            pe_ratio=None,
-            forward_pe=None,
-            pb_ratio=None,
-            dividend_yield=None,
+            market_cap=None,
+            pe_ratio=None, forward_pe=None, pb_ratio=None, dividend_yield=None,
             fifty_two_week_high=info.get("fiftyTwoWeekHigh"),
             fifty_two_week_low=info.get("fiftyTwoWeekLow"),
             avg_volume=info.get("averageVolume"),
-            beta=None,  # Not applicable to FOREX
-            analyst_target_price=None,
+            beta=None, analyst_target_price=None,
         )
     
     elif asset_class == AssetClass.BOND:
-        # Bonds (treasury yields)
         return MarketSnapshot(
             ticker=ticker,
             company_name=company_name,
             sector="Fixed Income",
-            industry=f"US Treasury {metadata.get('maturity')}",
-            current_price=current_price,  # This is yield %
+            industry=f"US Treasury {metadata.get('maturity', '')}",
+            current_price=current_price,
             currency="USD",
-            market_cap=None,
-            pe_ratio=None,
-            forward_pe=None,
-            pb_ratio=None,
-            dividend_yield=None,
+            market_cap=None, pe_ratio=None, forward_pe=None,
+            pb_ratio=None, dividend_yield=None,
             fifty_two_week_high=info.get("fiftyTwoWeekHigh"),
             fifty_two_week_low=info.get("fiftyTwoWeekLow"),
-            avg_volume=None,
-            beta=None,
-            analyst_target_price=None,
+            avg_volume=None, beta=None, analyst_target_price=None,
         )
     
     elif asset_class == AssetClass.COMMODITY:
@@ -158,16 +138,12 @@ def _build_snapshot(
             industry=metadata.get("sector", "Commodity"),
             current_price=current_price,
             currency="USD",
-            market_cap=None,
-            pe_ratio=None,
-            forward_pe=None,
-            pb_ratio=None,
-            dividend_yield=None,
+            market_cap=None, pe_ratio=None, forward_pe=None,
+            pb_ratio=None, dividend_yield=None,
             fifty_two_week_high=info.get("fiftyTwoWeekHigh"),
             fifty_two_week_low=info.get("fiftyTwoWeekLow"),
             avg_volume=info.get("averageVolume"),
-            beta=None,
-            analyst_target_price=None,
+            beta=None, analyst_target_price=None,
         )
     
     elif asset_class == AssetClass.CRYPTO:
@@ -179,31 +155,39 @@ def _build_snapshot(
             current_price=current_price,
             currency="USD",
             market_cap=info.get("marketCap"),
-            pe_ratio=None,
-            forward_pe=None,
-            pb_ratio=None,
-            dividend_yield=None,
+            pe_ratio=None, forward_pe=None, pb_ratio=None, dividend_yield=None,
             fifty_two_week_high=info.get("fiftyTwoWeekHigh"),
             fifty_two_week_low=info.get("fiftyTwoWeekLow"),
             avg_volume=info.get("averageVolume"),
-            beta=None,
-            analyst_target_price=None,
+            beta=None, analyst_target_price=None,
         )
     
-    else:
-        # Fallback
+    elif asset_class == AssetClass.INDEX:
         return MarketSnapshot(
             ticker=ticker,
             company_name=company_name,
+            sector="Market Index",
+            industry=metadata.get("name", "Index"),
             current_price=current_price,
             currency=currency,
+            market_cap=None,
+            pe_ratio=info.get("trailingPE"),
+            forward_pe=None, pb_ratio=None, dividend_yield=None,
+            fifty_two_week_high=info.get("fiftyTwoWeekHigh"),
+            fifty_two_week_low=info.get("fiftyTwoWeekLow"),
+            avg_volume=info.get("averageVolume"),
+            beta=None, analyst_target_price=None,
+        )
+    
+    else:
+        return MarketSnapshot(
+            ticker=ticker, company_name=company_name,
+            current_price=current_price, currency=currency,
         )
 
 
 async def fetch_market_snapshot(ticker: str) -> Optional[MarketSnapshot]:
-    """
-    Async wrapper for multi-asset market data fetch.
-    """
+    """Async wrapper for multi-asset market data fetch."""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(_thread_pool, _fetch_ticker_sync, ticker)
 
@@ -213,47 +197,40 @@ async def fetch_market_snapshot(ticker: str) -> Optional[MarketSnapshot]:
 def _calculate_projection_sync(
     ticker: str,
     initial_investment: float,
-    horizon_years: int,
+    horizon_years: float,           # V3 Phase 8: float, not int
 ) -> Optional[BudgetProjection]:
-    """
-    Calculate budget projection with asset-specific parameters.
-    """
+    """Calculate budget projection with asset-specific parameters."""
     try:
-        # Resolve asset class to get appropriate parameters
         yf_symbol, asset_class, _ = resolve_ticker(ticker)
         params = get_projection_params(asset_class)
         
-        # Fetch historical data for CAGR calculation
         ticker_obj = yf.Ticker(yf_symbol)
         
-        # Get data for the past N years (up to 5 years)
-        lookback_years = min(horizon_years, 5)
+        # Lookback: at least 6 months, at most 5 years
+        lookback_years = max(0.5, min(horizon_years, 5))
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=lookback_years * 365 + 30)
+        start_date = end_date - timedelta(days=int(lookback_years * 365) + 30)
         
         hist = ticker_obj.history(start=start_date, end=end_date)
         
-        if hist.empty or len(hist) < 30:
+        if hist.empty or len(hist) < 20:
             logger.warning(f"Insufficient historical data for {ticker}")
             return None
         
-        # Calculate CAGR
         start_price = hist["Close"].iloc[0]
         end_price = hist["Close"].iloc[-1]
-        years_actual = len(hist) / 252  # Trading days
+        years_actual = len(hist) / 252
         
         cagr = ((end_price / start_price) ** (1 / years_actual) - 1) * 100
         
-        # Apply asset-specific bounds
-        # FOREX and bonds typically have much lower returns
+        # Asset-specific bounds
         if asset_class == AssetClass.FOREX:
-            cagr = max(min(cagr, 5.0), -5.0)  # Cap at ±5%
+            cagr = max(min(cagr, 5.0), -5.0)
         elif asset_class == AssetClass.BOND:
-            cagr = max(min(cagr, 8.0), -2.0)  # Bonds: 0-8%
+            cagr = max(min(cagr, 8.0), -2.0)
         elif asset_class == AssetClass.CRYPTO:
-            cagr = max(min(cagr, 200.0), -80.0)  # Crypto: wild swings
+            cagr = max(min(cagr, 200.0), -80.0)
         
-        # Calculate projected values
         growth_factor = (1 + cagr / 100) ** horizon_years
         mid_value = initial_investment * growth_factor
         low_value = initial_investment * growth_factor * params["low_multiplier"]
@@ -276,11 +253,9 @@ def _calculate_projection_sync(
 async def calculate_budget_projection(
     ticker: str,
     initial_investment: float,
-    horizon_years: int,
+    horizon_years: float,           # V3 Phase 8: float, not int
 ) -> Optional[BudgetProjection]:
-    """
-    Async wrapper for projection calculation.
-    """
+    """Async wrapper for projection calculation."""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         _thread_pool,

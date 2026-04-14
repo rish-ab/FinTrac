@@ -9,31 +9,16 @@
 # improve the AI's output without touching the agent logic at all.
 # It also makes them easy to version, compare, and test.
 #
-# HOW THESE WORK WITH LANGCHAIN:
-# ChatPromptTemplate takes a template string with {placeholder}
-# variables. When the agent calls prompt.format_messages(...),
-# LangChain substitutes the real values and returns a list of
-# messages the LLM can consume. Think of it like Python's
-# str.format() but typed and structured for LLM conversations.
+# V3 ADDITIONS:
+# {calibration_context}  — Phase 5: self-calibration bias warnings
+# {active_improvements}  — Phase 6: learned prompt patches from
+#                          the prompt evolution engine
 # =============================================================
 
 from langchain_core.prompts import ChatPromptTemplate
 
 
 # ── SYSTEM PROMPT ──────────────────────────────────────────────────────────────
-# The system prompt defines WHO the AI is and HOW it should behave.
-# It runs once at the start of every conversation and sets the rules.
-#
-# Key decisions made here:
-#   1. Persona: financial analyst, not a general assistant
-#   2. Output format: strict JSON — makes parsing reliable
-#   3. Honesty rule: explicitly told to flag data gaps
-#   4. No fabrication rule: if data is missing, say so
-#
-# Why force JSON output?
-# If we ask for free text, parsing the verdict out of a paragraph
-# is fragile. JSON gives us a contract: we always know where the
-# action, reasoning, and alternatives live in the response.
 
 SYSTEM_PROMPT = """You are FinTrac, a financial analyst AI.
 You ONLY output a single JSON object. No other text, no markdown, no explanations.
@@ -53,20 +38,15 @@ confidence must be a float between 0.0 and 1.0
 reasoning must reference the data provided, max 150 words
 Do NOT include any fields other than these six.
 Do NOT wrap in markdown code fences.
+
+IMPORTANT: If calibration warnings or learned improvement rules are provided
+below, you MUST follow them strictly. These rules come from analyzing your
+own past prediction accuracy. They exist because you have been wrong in
+specific, measurable ways. Ignoring them will produce the same errors.
 """
 
 
 # ── INVESTMENT EVALUATION PROMPT ───────────────────────────────────────────────
-# This is the user-facing prompt that carries the actual market data
-# and user context into the conversation.
-#
-# Structure of what we pass to Mistral:
-#   - User's intent (budget, horizon, risk tolerance, question)
-#   - Live market snapshot (price, P/E, beta, dividend yield etc.)
-#   - Budget projection (what $X could become over N years)
-#
-# The {placeholders} are filled in by advisor_agent.py when it calls
-# INVESTMENT_PROMPT.format_messages(...)
 
 INVESTMENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT),
@@ -99,6 +79,10 @@ Analyst target:  ${analyst_target_price}
 === BUDGET PROJECTION (historical CAGR estimate) ===
 {projection_text}
 
+{calibration_context}
+
+{active_improvements}
+
 {rag_context}
 
 REMINDER — your entire response must be ONLY this JSON structure, nothing else:
@@ -108,14 +92,6 @@ REMINDER — your entire response must be ONLY this JSON structure, nothing else
 
 
 # ── COMPARISON PROMPT ──────────────────────────────────────────────────────────
-# Used by the /compare endpoint when the user wants two or more assets
-# evaluated side by side.
-#
-# The key difference from INVESTMENT_PROMPT:
-# We pass ALL snapshots at once and ask for a ranked recommendation.
-# This is more useful than running N separate evaluations because
-# the AI can reason about RELATIVE value (e.g. "GOOGL's P/E is lower
-# than AAPL's despite similar growth prospects").
 
 COMPARISON_PROMPT = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT),
@@ -154,10 +130,7 @@ Respond ONLY with the JSON object.
 ])
 
 
-# ── HELPER: FORMAT PROJECTION TEXT ────────────────────────────────────────────
-# Small utility that converts a BudgetProjection object into a readable
-# string for injection into the prompt. Lives here because it's
-# prompt-formatting logic, not business logic.
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def format_projection(projection) -> str:
     """Convert a BudgetProjection into a readable prompt string."""

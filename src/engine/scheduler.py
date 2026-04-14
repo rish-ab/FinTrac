@@ -3,24 +3,12 @@
 #
 # Runs background tasks on a fixed interval.
 #
-# WHY NOT CELERY OR APScheduler?
-# For this project, a simple asyncio loop is sufficient and
-# keeps the dependency count low. Celery adds a broker, a
-# worker process, and significant operational complexity —
-# overkill when Redis is already in the stack and all tasks
-# are I/O-bound async functions.
-#
-# HOW IT WORKS:
-# run_scheduler() is started as an asyncio background task
-# from main.py lifespan. It loops forever, sleeping between
-# runs. If a task fails, the error is logged and the scheduler
-# continues — one bad run doesn't kill the whole loop.
-#
 # INTERVALS:
-#   alert_monitor → every 60 seconds
-#     (yfinance rate limit is generous, 60s is safe)
+#   alert_monitor        → every 60 seconds
 #   prediction_evaluator → every 24 hours
-#     (predictions evaluated once daily)
+#   attribution_analysis → every 24 hours (after evaluator)
+#   calibration_engine   → every 7 days  (Phase 5)
+#   prompt_evolver       → every 7 days  (Phase 6, after calibration)
 # =============================================================
 
 import asyncio
@@ -31,9 +19,13 @@ from loguru import logger
 
 from src.engine.alert_monitor import run_alert_monitor
 from src.engine.prediction_evaluator import run_prediction_evaluator
+from src.engine.attribution_engine import run_attribution_analysis
+from src.engine.calibration_engine import run_calibration_engine
+from src.engine.prompt_evolver import run_prompt_evolver
 
-ALERT_CHECK_INTERVAL = 60   # seconds
-PREDICTION_EVAL_INTERVAL = 86400  # 24 hours in seconds
+ALERT_CHECK_INTERVAL = 60          # seconds
+PREDICTION_EVAL_INTERVAL = 86400   # 24 hours in seconds
+CALIBRATION_INTERVAL = 604800      # 7 days in seconds
 
 
 async def run_scheduler(redis_client: aioredis.Redis) -> None:
@@ -45,19 +37,50 @@ async def run_scheduler(redis_client: aioredis.Redis) -> None:
     logger.info(
         f"Scheduler started — "
         f"alert monitor every {ALERT_CHECK_INTERVAL}s, "
-        f"prediction evaluator every {PREDICTION_EVAL_INTERVAL}s"
+        f"prediction evaluator every {PREDICTION_EVAL_INTERVAL}s, "
+        f"calibration + prompt evolution every {CALIBRATION_INTERVAL}s"
     )
     
     # Track when each task last ran
     last_alert_check = datetime.utcnow()
     last_prediction_eval = datetime.utcnow()
+    last_calibration = datetime.utcnow()
     
-    # Run prediction evaluator immediately on startup (then every 24h)
+    # ── STARTUP SEQUENCE ───────────────────────────────────────
+    # Run the full pipeline once at startup so the system is
+    # immediately calibrated and has active improvement patches.
+    # Order matters: evaluate → attribute → calibrate → evolve
+    
     try:
         logger.info("Running initial prediction evaluation on startup...")
         await run_prediction_evaluator()
     except Exception as e:
         logger.error(f"Initial prediction evaluation failed: {e}")
+    
+    try:
+        logger.info("Running initial attribution analysis on startup...")
+        await run_attribution_analysis()
+    except Exception as e:
+        logger.error(f"Initial attribution analysis failed: {e}")
+    
+    try:
+        logger.info("Running initial calibration on startup...")
+        result = await run_calibration_engine()
+        logger.info(f"Initial calibration result: {result.get('status', 'unknown')}")
+    except Exception as e:
+        logger.error(f"Initial calibration failed: {e}")
+    
+    try:
+        logger.info("Running initial prompt evolution on startup...")
+        result = await run_prompt_evolver()
+        logger.info(
+            f"Initial prompt evolution: {result.get('patches_created', 0)} new, "
+            f"{result.get('total_active_patches', 0)} active"
+        )
+    except Exception as e:
+        logger.error(f"Initial prompt evolution failed: {e}")
+    
+    # ── MAIN LOOP ──────────────────────────────────────────────
     
     while True:
         now = datetime.utcnow()
@@ -75,8 +98,44 @@ async def run_scheduler(redis_client: aioredis.Redis) -> None:
             try:
                 await run_prediction_evaluator()
                 last_prediction_eval = now
+                
+                # Run attribution analysis after evaluator finishes
+                try:
+                    await run_attribution_analysis()
+                except Exception as e:
+                    logger.error(f"Scheduler: attribution analysis failed: {e}")
+                    
             except Exception as e:
                 logger.error(f"Scheduler: prediction evaluator run failed: {e}")
         
+        # ── CALIBRATION + EVOLUTION (every 7 days) ─────────────
+        # Phase 5 calibration runs first to detect biases.
+        # Phase 6 prompt evolver runs after to generate patches
+        # based on the latest calibration data.
+        if (now - last_calibration).total_seconds() >= CALIBRATION_INTERVAL:
+            try:
+                # Phase 5: Calibration
+                cal_result = await run_calibration_engine()
+                logger.info(
+                    f"Scheduler: calibration complete — "
+                    f"{cal_result.get('profiles_created', 0)} profiles"
+                )
+                
+                # Phase 6: Prompt Evolution (runs after calibration)
+                try:
+                    evo_result = await run_prompt_evolver()
+                    logger.info(
+                        f"Scheduler: prompt evolution complete — "
+                        f"{evo_result.get('patches_created', 0)} new patches, "
+                        f"{evo_result.get('total_active_patches', 0)} active"
+                    )
+                except Exception as e:
+                    logger.error(f"Scheduler: prompt evolution failed: {e}")
+                
+                last_calibration = now
+                
+            except Exception as e:
+                logger.error(f"Scheduler: calibration engine failed: {e}")
+        
         # Sleep for a short interval to avoid busy-waiting
-        await asyncio.sleep(10)  # Check every 10 seconds
+        await asyncio.sleep(10)

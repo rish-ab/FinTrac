@@ -34,6 +34,20 @@ interface AnalysisResult {
   alternatives: Array<{ ticker: string; reason: string }> | null
 }
 
+// ── HORIZON OPTIONS ───────────────────────────────────────────────────────
+
+const HORIZON_OPTIONS = [
+  { value: 0.083, label: '1 Month' },
+  { value: 0.25,  label: '3 Months' },
+  { value: 0.5,   label: '6 Months' },
+  { value: 1,     label: '1 Year' },
+  { value: 2,     label: '2 Years' },
+  { value: 3,     label: '3 Years' },
+  { value: 5,     label: '5 Years' },
+  { value: 10,    label: '10 Years' },
+  { value: 20,    label: '20 Years' },
+]
+
 // ── COMPONENT ──────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -49,9 +63,9 @@ export default function Dashboard() {
     setError(null)
     
     // Auto-adjust horizon based on asset class
-    if (assetClass === 'forex') setHorizon(1)
-    else if (assetClass === 'crypto') setHorizon(1)
-    else if (assetClass === 'commodities') setHorizon(2)
+    if (assetClass === 'forex') setHorizon(0.25)
+    else if (assetClass === 'crypto') setHorizon(0.5)
+    else if (assetClass === 'commodities') setHorizon(1)
     else if (assetClass === 'bonds') setHorizon(3)
     else setHorizon(5)  // equities default
   }
@@ -66,7 +80,7 @@ export default function Dashboard() {
     setError(null)
     
     try {
-      const res = await evaluate(selectedTicker, budget, undefined)
+      const res = await evaluate(selectedTicker, budget, undefined, horizon)
       setResult(res.data)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Analysis failed')
@@ -74,6 +88,12 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Format horizon for display
+  const formatHorizon = (h: number): string => {
+    const opt = HORIZON_OPTIONS.find(o => o.value === h)
+    return opt ? opt.label : `${h} Years`
   }
 
   return (
@@ -175,13 +195,20 @@ export default function Dashboard() {
                     fontSize: '14px',
                   }}
                 >
-                  <option value={1}>1 Year</option>
-                  <option value={2}>2 Years</option>
-                  <option value={3}>3 Years</option>
-                  <option value={5}>5 Years</option>
-                  <option value={10}>10 Years</option>
-                  <option value={20}>20 Years</option>
+                  {HORIZON_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
+                {horizon < 1 && (
+                  <div style={{
+                    marginTop: '6px',
+                    fontSize: '11px',
+                    fontFamily: 'var(--ft-mono)',
+                    color: 'var(--ft-amber)',
+                  }}>
+                    Short-term analysis — higher volatility expected
+                  </div>
+                )}
               </div>
 
               <button
@@ -274,7 +301,7 @@ export default function Dashboard() {
               {result.projection && (
                 <div className="card">
                   <div className="card-header">
-                    {result.projection.horizon_years}-Year Projection
+                    {formatHorizon(result.projection.horizon_years)} Projection
                   </div>
                   <div className="card-body p-3">
                     <div style={{
@@ -326,10 +353,7 @@ export default function Dashboard() {
           ) : (
             <div className="card">
               <div className="card-body text-center" style={{ padding: '60px 24px' }}>
-                <div style={{
-                  fontSize: '48px',
-                  marginBottom: '16px',
-                }}>📊</div>
+                <i className="bi bi-graph-up" style={{ fontSize: '48px', color: 'var(--ft-border-light)', display: 'block', marginBottom: '16px' }} />
                 <p style={{
                   fontSize: '16px',
                   color: 'var(--ft-text-muted)',
