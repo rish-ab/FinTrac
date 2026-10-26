@@ -49,6 +49,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./data:/app/data
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

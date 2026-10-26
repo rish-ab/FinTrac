@@ -137,6 +137,7 @@ class MarketSnapshot(BaseModel):
     avg_volume:         Optional[float] = None
     beta:               Optional[float] = None
     analyst_target_price: Optional[float] = None
+    asset_class:        Optional[str]   = None   # EQUITY, FOREX, CRYPTO, ... (from asset_registry)
 
 
 # ── BUDGET PROJECTION ──────────────────────────────────────────────────────────

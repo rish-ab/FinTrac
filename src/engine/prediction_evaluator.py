@@ -4,81 +4,119 @@
 # Evaluates past predictions by comparing predicted vs actual
 # market performance.
 #
-# CALLED BY: src/engine/scheduler.py every 24 hours
-#
-# FLOW:
-#   1. Find predictions where evaluation_due_at <= now AND status = 'PENDING'
-#   2. For each prediction:
-#      a. Fetch current market data
-#      b. Calculate actual return vs predicted
-#      c. Create PredictionOutcome record
-#      d. Update prediction status to 'EVALUATED'
-#
-# WHY SEPARATE FROM PREDICTION CREATION?
-# Separating recording from evaluation allows:
-#   - Predictions to be saved immediately (fast API response)
-#   - Evaluation to run in batches (efficient)
-#   - Retries if market data unavailable
-#   - Historical re-evaluation if methodology changes
-#
-# HORIZON PARSING:
-# prediction_horizon is stored as string (e.g., '1w', '1m', '3m')
-# We parse this to calculate when evaluation is due.
+# V3 FIXES (post-audit):
+#   1. Price is now fetched AS OF evaluation_due_at (horizon date),
+#      not "whenever the evaluator happens to run". Late evaluation
+#      no longer corrupts returns.
+#   2. Uses yf_client_v2 ticker resolution so forex/commodity/crypto
+#      tickers (USDCHF, GOLD, BTC) resolve correctly.
+#   3. HOLD is graded within a tolerance band (±3% default) instead
+#      of being treated as a bearish directional bet.
+#   4. Guards against near-zero elapsed time: if the prediction is
+#      younger than MIN_ELAPSED_HOURS, evaluation is deferred even
+#      if evaluation_due_at is (incorrectly) in the past.
 # =============================================================
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
+import yfinance as yf
 from loguru import logger
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.v3_models import PredictionRecord, PredictionOutcome
 from src.db.session import AsyncSessionFactory
-from src.ingestion.yf_client import fetch_market_snapshot
+from src.ingestion.asset_registry import resolve_ticker
+
+_thread_pool = ThreadPoolExecutor(max_workers=2)
+
+# HOLD is "correct" if |actual return| stays inside this band
+HOLD_TOLERANCE_PCT = 3.0
+
+# Never evaluate a prediction younger than this, even if due_at says so.
+# Protects against bad seed data / backfill errors producing 0.00% returns.
+MIN_ELAPSED_HOURS = 24
 
 
 # ── HORIZON PARSING ────────────────────────────────────────────────────────────
 
 def _parse_horizon(horizon_str: str) -> Optional[timedelta]:
-    """
-    Parse horizon string like '1w', '1m', '3m', '1y' into timedelta.
-    Returns None if format is unrecognized.
-    
-    Examples:
-        '1w'  → 7 days
-        '2w'  → 14 days
-        '1m'  → 30 days (approximate)
-        '3m'  → 90 days
-        '6m'  → 180 days
-        '1y'  → 365 days
-    """
+    """'1w'→7d, '1m'→30d, '3m'→90d, '1y'→365d, '5d'→5d. None if unparseable."""
     if not horizon_str:
         return None
-    
     try:
-        # Strip whitespace and convert to lowercase
         horizon = horizon_str.strip().lower()
-        
-        # Extract number and unit
         if horizon.endswith('w'):
-            weeks = int(horizon[:-1])
-            return timedelta(weeks=weeks)
+            return timedelta(weeks=int(horizon[:-1]))
         elif horizon.endswith('m'):
-            months = int(horizon[:-1])
-            return timedelta(days=months * 30)  # approximate
+            return timedelta(days=int(horizon[:-1]) * 30)
         elif horizon.endswith('y'):
-            years = int(horizon[:-1])
-            return timedelta(days=years * 365)  # approximate
+            return timedelta(days=int(horizon[:-1]) * 365)
         elif horizon.endswith('d'):
-            days = int(horizon[:-1])
-            return timedelta(days=days)
-        else:
-            logger.warning(f"Unrecognized horizon format: {horizon_str}")
-            return None
+            return timedelta(days=int(horizon[:-1]))
+        logger.warning(f"Unrecognized horizon format: {horizon_str}")
+        return None
     except (ValueError, IndexError) as e:
         logger.warning(f"Failed to parse horizon '{horizon_str}': {e}")
         return None
+
+
+# ── GRADING ────────────────────────────────────────────────────────────────────
+
+def grade_direction(direction: str, actual_return_pct: float) -> bool:
+    """
+    Was the call right? Shared with backtester.py so live and
+    historical accuracy are graded identically.
+    
+    HOLD/neutral is a non-directional call: correct if the price
+    stayed inside ±HOLD_TOLERANCE_PCT.
+    """
+    direction = (direction or '').lower()
+    if direction in ('hold', 'neutral'):
+        return abs(actual_return_pct) <= HOLD_TOLERANCE_PCT
+    if direction in ('buy', 'long', 'bullish'):
+        return actual_return_pct > 0
+    # avoid / sell / short / bearish
+    return actual_return_pct < 0
+
+
+# ── PRICE AS OF A SPECIFIC DATE ────────────────────────────────────────────────
+
+def _fetch_price_asof_sync(ticker: str, target_date: datetime) -> Optional[float]:
+    """
+    Fetch the closing price for `ticker` at the trading day closest to
+    (and not after) target_date. Resolves through the multi-asset registry
+    so forex/commodity/crypto tickers work.
+    """
+    try:
+        yf_symbol, _asset_class, _meta = resolve_ticker(ticker)
+        ticker_obj = yf.Ticker(yf_symbol)
+
+        start = target_date - timedelta(days=10)
+        end = target_date + timedelta(days=2)
+        hist = ticker_obj.history(start=start, end=end)
+
+        if hist.empty:
+            return None
+
+        # Closest trading day on or before target_date
+        valid = hist.index[hist.index.date <= target_date.date()]
+        if len(valid) == 0:
+            valid = hist.index
+        return float(hist.loc[valid[-1], 'Close'])
+    except Exception as e:
+        logger.error(f"Price fetch failed for {ticker} asof {target_date.date()}: {e}")
+        return None
+
+
+async def _fetch_price_asof(ticker: str, target_date: datetime) -> Optional[float]:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _thread_pool, _fetch_price_asof_sync, ticker, target_date
+    )
 
 
 # ── EVALUATE ONE PREDICTION ────────────────────────────────────────────────────
@@ -88,108 +126,101 @@ async def _evaluate_prediction(
     db: AsyncSession,
 ) -> bool:
     """
-    Evaluate a single prediction by fetching current data and comparing.
-    Returns True if evaluation succeeded, False if it should be retried later.
+    Evaluate a single prediction. Returns True if handled (evaluated or
+    permanently failed), False if it should be retried on a later run.
     """
     ticker = prediction.ticker
-    
-    # Fetch current market snapshot
-    snapshot = await fetch_market_snapshot(ticker)
-    
-    if snapshot.current_price is None:
+    now = datetime.utcnow()
+
+    # ── SANITY GUARD: minimum elapsed time ─────────────────────
+    elapsed = now - prediction.prediction_timestamp
+    if elapsed < timedelta(hours=MIN_ELAPSED_HOURS):
         logger.warning(
-            f"Cannot evaluate prediction {prediction.id[:8]}... — "
-            f"no price data for {ticker}. Will retry later."
+            f"Prediction {prediction.id[:8]}... ({ticker}) is only "
+            f"{elapsed.total_seconds()/3600:.1f}h old but marked due — "
+            f"deferring. Check evaluation_due_at integrity."
         )
-        return False  # Don't mark as evaluated, try again next run
-    
-    # Get original price from analysis_context
+        return False
+
+    # ── ORIGINAL PRICE ─────────────────────────────────────────
     original_price = None
     if prediction.analysis_context and 'market_price' in prediction.analysis_context:
         original_price = prediction.analysis_context['market_price']
-    
-    if original_price is None:
+
+    if original_price is None or original_price <= 0:
         logger.error(
-            f"Cannot evaluate prediction {prediction.id[:8]}... — "
-            f"no original price in analysis_context"
+            f"Prediction {prediction.id[:8]}... ({ticker}) has no valid "
+            f"original price — marking FAILED"
         )
-        # Mark as FAILED rather than leaving PENDING
         await db.execute(
             update(PredictionRecord)
             .where(PredictionRecord.id == prediction.id)
             .values(evaluation_status='FAILED')
         )
-        return True  # Don't retry
-    
-    current_price = snapshot.current_price
-    
-    # ── CALCULATE METRICS ──────────────────────────────────────
-    actual_return_pct = ((current_price - original_price) / original_price) * 100
-    
-    # Determine if direction was correct
-    predicted_up = prediction.predicted_direction in ['buy', 'long', 'bullish']
-    actual_up = actual_return_pct > 0
-    direction_correct = (predicted_up == actual_up)
-    
-    # Calculate absolute error (if predicted_return_pct was provided)
+        await db.commit()
+        return True
+
+    # ── PRICE AT HORIZON DATE (not "now") ──────────────────────
+    # Anchor the outcome to evaluation_due_at so late evaluator runs
+    # don't grade a 1-week call against a 5-week outcome.
+    horizon_date = prediction.evaluation_due_at or now
+    price_at_horizon = await _fetch_price_asof(ticker, horizon_date)
+
+    if price_at_horizon is None:
+        logger.warning(
+            f"Cannot evaluate {prediction.id[:8]}... — no price data for "
+            f"{ticker} asof {horizon_date.date()}. Will retry."
+        )
+        return False
+
+    # ── METRICS ────────────────────────────────────────────────
+    actual_return_pct = ((price_at_horizon - original_price) / original_price) * 100
+
+    direction = (prediction.predicted_direction or '').lower()
+    direction_correct = grade_direction(direction, actual_return_pct)
+
     absolute_error = None
     if prediction.predicted_return_pct is not None:
         absolute_error = abs(actual_return_pct - prediction.predicted_return_pct)
-    
-    # Simple accuracy score: 1.0 if direction correct, 0.0 if not
-    # (More sophisticated scoring could weight by confidence, magnitude, etc.)
+
     accuracy_score = 1.0 if direction_correct else 0.0
-    
-    # ── CREATE OUTCOME RECORD ──────────────────────────────────
+
     outcome = PredictionOutcome(
         prediction_id=prediction.id,
-        evaluation_timestamp=datetime.utcnow(),
+        evaluation_timestamp=now,
         actual_price_start=original_price,
-        actual_price_end=current_price,
+        actual_price_end=price_at_horizon,
         actual_return_pct=actual_return_pct,
         is_direction_correct=direction_correct,
-        absolute_error=absolute_error if absolute_error is not None else 0.0,
+        absolute_error=absolute_error,
         prediction_accuracy_score=accuracy_score,
         evaluation_status='COMPLETED',
     )
-    
     db.add(outcome)
-    
-    # ── UPDATE PREDICTION STATUS ───────────────────────────────
+
     await db.execute(
         update(PredictionRecord)
         .where(PredictionRecord.id == prediction.id)
         .values(evaluation_status='EVALUATED')
     )
-    
     await db.commit()
-    
+
     logger.info(
-        f"✓ Evaluated prediction {prediction.id[:8]}... | {ticker} | "
-        f"predicted={prediction.predicted_direction} "
-        f"actual_return={actual_return_pct:.2f}% "
-        f"direction_correct={direction_correct} "
-        f"accuracy={accuracy_score:.2f}"
+        f"✓ Evaluated {prediction.id[:8]}... | {ticker} | "
+        f"{direction} | start={original_price:.4f} "
+        f"end={price_at_horizon:.4f} return={actual_return_pct:+.2f}% "
+        f"correct={direction_correct}"
     )
-    
     return True
 
 
 # ── MAIN EVALUATOR RUN ─────────────────────────────────────────────────────────
 
 async def run_prediction_evaluator() -> None:
-    """
-    Find and evaluate all predictions that are ready for evaluation.
-    Called by the scheduler (typically every 24 hours).
-    
-    A prediction is ready when:
-    - evaluation_due_at <= now
-    - evaluation_status = 'PENDING'
-    """
+    """Evaluate all predictions whose horizon has elapsed. Runs every 24h."""
     async with AsyncSessionFactory() as db:
         now = datetime.utcnow()
-        
-        # Find predictions ready for evaluation
+
         result = await db.execute(
             select(PredictionRecord)
             .where(
@@ -198,70 +229,50 @@ async def run_prediction_evaluator() -> None:
             )
             .order_by(PredictionRecord.evaluation_due_at)
         )
-        
         predictions = result.scalars().all()
-        
+
         if not predictions:
-            logger.debug("Prediction evaluator: no predictions ready for evaluation")
+            logger.debug("Prediction evaluator: nothing ready")
             return
-        
-        logger.info(
-            f"Prediction evaluator: found {len(predictions)} predictions to evaluate"
-        )
-        
-        evaluated = 0
-        failed = 0
-        
+
+        logger.info(f"Prediction evaluator: {len(predictions)} predictions due")
+
+        evaluated = deferred = 0
         for prediction in predictions:
             try:
-                success = await _evaluate_prediction(prediction, db)
-                if success:
+                if await _evaluate_prediction(prediction, db):
                     evaluated += 1
                 else:
-                    failed += 1
+                    deferred += 1
             except Exception as e:
                 logger.error(
-                    f"Evaluation failed for prediction {prediction.id[:8]}... "
+                    f"Evaluation error for {prediction.id[:8]}... "
                     f"({prediction.ticker}): {e}"
                 )
-                failed += 1
-        
+                deferred += 1
+
         logger.info(
-            f"Prediction evaluator complete: "
-            f"{evaluated} evaluated, {failed} failed/deferred"
+            f"Prediction evaluator complete: {evaluated} handled, {deferred} deferred"
         )
 
 
 # ── BACKFILL EVALUATION_DUE_AT ─────────────────────────────────────────────────
 
 async def backfill_evaluation_due_dates() -> None:
-    """
-    One-time migration helper: set evaluation_due_at for existing predictions
-    that don't have it set yet.
-    
-    Run this once after adding the evaluation_due_at column.
-    """
+    """Set evaluation_due_at where missing, from prediction_timestamp + horizon."""
     async with AsyncSessionFactory() as db:
         result = await db.execute(
             select(PredictionRecord)
             .where(PredictionRecord.evaluation_due_at.is_(None))
         )
-        
         predictions = result.scalars().all()
-        
         if not predictions:
             logger.info("No predictions need evaluation_due_at backfill")
             return
-        
-        logger.info(f"Backfilling evaluation_due_at for {len(predictions)} predictions")
-        
+
+        logger.info(f"Backfilling evaluation_due_at for {len(predictions)}")
         for pred in predictions:
-            horizon_delta = _parse_horizon(pred.prediction_horizon)
-            if horizon_delta:
-                pred.evaluation_due_at = pred.prediction_timestamp + horizon_delta
-            else:
-                # Default to 1 week if horizon unparseable
-                pred.evaluation_due_at = pred.prediction_timestamp + timedelta(weeks=1)
-        
+            delta = _parse_horizon(pred.prediction_horizon) or timedelta(weeks=1)
+            pred.evaluation_due_at = pred.prediction_timestamp + delta
         await db.commit()
         logger.info("Backfill complete")

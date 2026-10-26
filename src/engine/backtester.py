@@ -27,16 +27,28 @@
 # - yfinance historical data availability varies by ticker
 # - SEC filings and RAG context are NOT historically scoped
 #   (the AI sees current filings, not filings from the backtest date)
+# - The LLM's training data may include what happened after the
+#   backtest date, so results are an OPTIMISTIC upper bound.
+#
+# CALIBRATION IS DISABLED here: current calibration profiles were
+# learned from outcomes that may postdate the backtest date, which
+# would leak the future into the prediction. Confidence is the
+# model's raw output.
+#
+# Grading uses prediction_evaluator.grade_direction, identical to
+# live evaluation (HOLD correct only within ±HOLD_TOLERANCE_PCT).
 # =============================================================
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import yfinance as yf
 from loguru import logger
 from pydantic import BaseModel
+
+from src.engine.prediction_evaluator import grade_direction
 
 from src.api.schemas.investment import MarketSnapshot, BudgetProjection
 from src.ingestion.asset_registry import (
@@ -270,7 +282,7 @@ async def run_single_backtest(
         horizon_years=horizon_days / 365,
     )
     
-    verdict = await get_investment_verdict(query, snapshot, None)
+    verdict = await get_investment_verdict(query, snapshot, None, apply_calibration=False)
     
     if verdict is None:
         return BacktestResult(
@@ -295,9 +307,7 @@ async def run_single_backtest(
     
     if future_price is not None and price_at_prediction > 0:
         actual_return = ((future_price - price_at_prediction) / price_at_prediction) * 100
-        predicted_up = verdict.action.upper() in ('BUY',)
-        actual_up = actual_return > 0
-        direction_correct = (predicted_up == actual_up) or verdict.action.upper() == 'HOLD'
+        direction_correct = grade_direction(verdict.action, actual_return)
     
     return BacktestResult(
         ticker=ticker,
@@ -323,12 +333,17 @@ async def run_range_backtest(
     budget: float = 10000,
     horizon: str = '1m',
     max_points: int = 24,
+    on_start: Optional[Callable[[int], None]] = None,
+    on_step: Optional[Callable[[BacktestResult], None]] = None,
 ) -> BacktestRangeResult:
     """
     Run backtests at regular intervals across a date range.
     
     Example: ticker=AAPL, start=2024-01-01, end=2025-01-01, interval=30
     → Runs ~12 backtests, one per month, returns accuracy curve.
+    
+    on_start(total) and on_step(result) let a background job report
+    progress (see job_runner.py); both are optional.
     """
     logger.info(
         f"Backtest range: {ticker} from {start_date.date()} to {end_date.date()} "
@@ -341,6 +356,9 @@ async def run_range_backtest(
     while current <= end_date and len(dates) < max_points:
         dates.append(current)
         current += timedelta(days=interval_days)
+    
+    if on_start:
+        on_start(len(dates))
     
     # Run backtests sequentially (to avoid overwhelming Ollama)
     results = []
@@ -360,7 +378,9 @@ async def run_range_backtest(
                 horizon_label=horizon,
                 error=str(e),
             ))
-    
+        if on_step:
+            on_step(results[-1])
+
     # Calculate aggregate statistics
     successful = [r for r in results if r.ai_verdict is not None]
     evaluated = [r for r in successful if r.direction_correct is not None]

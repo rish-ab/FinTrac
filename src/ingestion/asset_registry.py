@@ -234,44 +234,87 @@ def get_all_asset_symbols() -> Dict[AssetClass, list]:
 
 # ── SEARCH ─────────────────────────────────────────────────────────────────────
 
+# =============================================================
+# REPLACEMENT for search_assets() in src/ingestion/asset_registry.py
+#
+# Replace the existing search_assets function at the bottom of
+# the file with this version. Nothing else in asset_registry.py
+# needs to change.
+#
+# WHAT CHANGED AND WHY:
+# The previous implementation used `q_lower in name.lower()`,
+# a raw substring match anywhere in the display name. Typing "pa"
+# matched "Ja(pa)nese Yen" and "Ja(pa)n", returning AUDJPY, CADJPY,
+# EURJPY, GBPJPY, JPYINR and NIKKEI — none of which the user meant.
+#
+# This version matches on:
+#   1. Exact ticker equality            (highest rank)
+#   2. Ticker prefix                     ("USD" -> USDINR, USDJPY)
+#   3. Ticker substring                  ("INR" -> USDINR, EURINR)
+#   4. Word-start match in the name      ("gol" -> "Gold Futures")
+#
+# Word-start matching is the key fix: a query only matches a name
+# if it begins one of the words in that name, so "pa" no longer
+# matches the middle of "Japanese".
+# =============================================================
+
 def search_assets(query: str, limit: int = 15) -> List[Dict]:
     """
-    Search across all registries by ticker or name.
-    Returns a list of {ticker, name, asset_class, yf_symbol}.
-    Case-insensitive, partial match on ticker and name.
+    Search the curated registries (forex, bonds, commodities, crypto,
+    indices) by ticker or name.
+
+    Equities are NOT searched here — there are too many to hardcode.
+    They are handled by src/ingestion/equity_search.py, and the
+    /assets/search route merges both sources.
     """
     q = query.upper().replace("/", "").replace("-", "").strip()
-    q_lower = query.lower()
-    results = []
-    
+    q_lower = query.lower().strip()
+
+    if not q:
+        return []
+
     registries = [
         (FOREX_PAIRS, "FOREX"),
-        (BONDS, "BOND"),
+        (BONDS,       "BOND"),
         (COMMODITIES, "COMMODITY"),
-        (CRYPTO, "CRYPTO"),
-        (INDICES, "INDEX"),
+        (CRYPTO,      "CRYPTO"),
+        (INDICES,     "INDEX"),
     ]
-    
+
+    results = []
+
     for registry, asset_class in registries:
         for ticker, meta in registry.items():
             name = meta.get("name", "")
-            # Match on ticker prefix or name substring
-            if (
-                ticker.startswith(q) or
-                q in ticker or
-                q_lower in name.lower()
-            ):
-                results.append({
-                    "ticker": ticker,
-                    "name": name,
-                    "asset_class": asset_class,
-                    "yf_symbol": meta.get("symbol", ticker),
-                })
-    
-    # Sort: exact prefix matches first, then alphabetical
-    results.sort(key=lambda r: (
-        0 if r["ticker"].startswith(q) else 1,
-        r["ticker"],
-    ))
-    
+            name_words = name.lower().replace("/", " ").replace("(", " ").split()
+
+            # Rank 0: exact ticker match
+            if ticker == q:
+                rank = 0
+            # Rank 1: ticker starts with the query
+            elif ticker.startswith(q):
+                rank = 1
+            # Rank 2: query appears inside the ticker (INR -> USDINR)
+            elif q in ticker:
+                rank = 2
+            # Rank 3: query starts a word in the display name
+            elif any(word.startswith(q_lower) for word in name_words):
+                rank = 3
+            else:
+                continue
+
+            results.append({
+                "ticker":      ticker,
+                "name":        name,
+                "asset_class": asset_class,
+                "yf_symbol":   meta.get("symbol", ticker),
+                "source":      "registry",
+                "_rank":       rank,
+            })
+
+    results.sort(key=lambda r: (r["_rank"], r["ticker"]))
+
+    for r in results:
+        r.pop("_rank", None)
+
     return results[:limit]

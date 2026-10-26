@@ -59,6 +59,7 @@ def _fetch_ticker_sync(user_input: str) -> Optional[MarketSnapshot]:
             company_name=company_name,
             metadata=metadata,
         )
+        snapshot.asset_class = asset_class.value
         
         return snapshot
     

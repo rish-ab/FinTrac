@@ -125,6 +125,19 @@ async def get_accuracy_by_sector() -> List[Dict[str, Any]]:
 
 # ── ACCURACY BY CONFIDENCE BUCKET ──────────────────────────────────────────────
 
+CONFIDENCE_BUCKETS = ['0.0-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-1.0']
+
+
+def _confidence_bucket(conf: float) -> str:
+    """Map a 0-1 confidence to its reliability bucket label."""
+    if conf < 0.5:
+        return '0.0-0.5'
+    if conf >= 0.9:
+        return '0.9-1.0'
+    lower = int(conf * 10) / 10
+    return f"{lower:.1f}-{lower + 0.1:.1f}"
+
+
 @router.get("/confidence-calibration")
 async def get_confidence_calibration() -> List[Dict[str, Any]]:
     """Get accuracy vs confidence buckets to show calibration."""
@@ -138,29 +151,13 @@ async def get_confidence_calibration() -> List[Dict[str, Any]]:
             .where(PredictionRecord.evaluation_status == 'EVALUATED')
         )
     
-    buckets = {
-        '0.5-0.6': {'total': 0, 'correct': 0},
-        '0.6-0.7': {'total': 0, 'correct': 0},
-        '0.7-0.8': {'total': 0, 'correct': 0},
-        '0.8-0.9': {'total': 0, 'correct': 0},
-        '0.9-1.0': {'total': 0, 'correct': 0},
-    }
+    buckets = {label: {'total': 0, 'correct': 0} for label in CONFIDENCE_BUCKETS}
     
     for row in result:
         conf = row.confidence_score
         correct = row.is_direction_correct
         
-        if 0.5 <= conf < 0.6:
-            bucket = '0.5-0.6'
-        elif 0.6 <= conf < 0.7:
-            bucket = '0.6-0.7'
-        elif 0.7 <= conf < 0.8:
-            bucket = '0.7-0.8'
-        elif 0.8 <= conf < 0.9:
-            bucket = '0.8-0.9'
-        else:
-            bucket = '0.9-1.0'
-        
+        bucket = _confidence_bucket(conf)
         buckets[bucket]['total'] += 1
         buckets[bucket]['correct'] += correct
     
@@ -389,6 +386,23 @@ async def get_calibration_summary() -> Dict[str, Any]:
             'avg_correction_factor': round(avg_correction, 3) if avg_correction else None,
             'system_status': 'calibrated' if active_count > 0 else 'uncalibrated',
         }
+
+
+@router.get("/calibration-metrics")
+async def get_calibration_metrics() -> Dict[str, Any]:
+    """
+    Brier score, ECE, reliability (with Wilson intervals), per-action
+    precision vs the always-BUY baseline, and accuracy by horizon.
+    Computed on de-duplicated evaluated predictions.
+    """
+    from src.engine.calibration_engine import (
+        _fetch_evaluated_predictions, build_calibration_report,
+    )
+    from src.engine.calibration_metrics import dedupe_predictions
+    
+    async with AsyncSessionFactory() as db:
+        predictions = dedupe_predictions(await _fetch_evaluated_predictions(db))
+    return build_calibration_report(predictions)
 
 
 @router.post("/trigger-calibration")

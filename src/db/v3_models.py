@@ -54,7 +54,8 @@ class PredictionRecord(Base):
     prediction_horizon   = Column(String(20), nullable=False)  # 1d, 1w, 1m, 3m
     predicted_direction  = Column(String(10), nullable=False)  # up, down, neutral
     predicted_return_pct = Column(Float, nullable=True)
-    confidence_score     = Column(Float, nullable=False)       # 0.0 to 1.0
+    confidence_score     = Column(Float, nullable=False)       # 0.0 to 1.0, after calibration correction (shown to user)
+    raw_confidence       = Column(Float, nullable=True)        # 0.0 to 1.0, model output BEFORE correction — calibrate on this
     analysis_context     = Column(JSON, nullable=False)        # Full AI reasoning
     prompt_version       = Column(String(50), nullable=False)
     model_version        = Column(String(50), nullable=False)
@@ -93,7 +94,7 @@ class PredictionOutcome(Base):
     actual_return_pct        = Column(Float, nullable=False)
     prediction_accuracy_score = Column(Float, nullable=True)
     is_direction_correct     = Column(Boolean, nullable=False)
-    absolute_error           = Column(Float, nullable=False)
+    absolute_error           = Column(Float, nullable=True)    # NULL when no predicted_return_pct
     evaluation_status        = Column(String(20), nullable=False, index=True)  # pending, completed, failed
     created_at               = Column(DateTime, default=datetime.utcnow, nullable=False)
     

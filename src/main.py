@@ -11,11 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import analysis, auth, portfolio, alerts
 from src.api.routes import dashboard
 from src.api.routes import assets
+from src.api.routes import jobs
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ───────────────────────────────────────────────
     print("FinTrac starting up...")
+
+    from src.ingestion.equity_search import warm_equity_index
+# inside the startup section of lifespan()
+    asyncio.create_task(warm_equity_index())
 
     # MariaDB
     from src.db.session import init_db, close_db
@@ -95,6 +100,7 @@ app.include_router(portfolio.router, prefix="/api/v1/portfolios",  tags=["Portfo
 app.include_router(alerts.router,    prefix="/api/v1/alerts",      tags=["Alerts"])
 app.include_router(dashboard.router, prefix="/api/v1")  
 app.include_router(assets.router, prefix="/api/v1")
+app.include_router(jobs.router, prefix="/api/v1")
 
 @app.get("/health", tags=["Health"])
 async def health():

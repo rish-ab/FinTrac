@@ -104,7 +104,7 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
                 try:
                     from src.engine.calibration_engine import get_calibration_context
                     from src.engine.prompt_evolver import get_active_improvements, get_active_prompt_version
-                    profiles = await get_calibration_context(sector=market_snapshot.sector, asset_class='EQUITY')
+                    profiles = await get_calibration_context(sector=market_snapshot.sector, asset_class=market_snapshot.asset_class or 'EQUITY')
                     calibration_count = len(profiles)
                     improvements = await get_active_improvements()
                     improvement_count = len(improvements)
@@ -120,6 +120,7 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
                         predicted_direction=verdict.action.lower(),
                         predicted_return_pct=None,
                         confidence_score=verdict.confidence,
+                        raw_confidence=verdict.raw_confidence if verdict.raw_confidence is not None else verdict.confidence,
                         analysis_context={
                             'reasoning': verdict.reasoning,
                             'alternatives': [a.model_dump() for a in verdict.alternatives] if verdict.alternatives else [],
@@ -133,7 +134,7 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
                         prompt_version=prompt_version,
                         model_version='mistral:7b',
                         sector=market_snapshot.sector,
-                        asset_class='EQUITY',
+                        asset_class=market_snapshot.asset_class or 'EQUITY',
                         evaluation_status='PENDING',
                         evaluation_due_at=evaluation_due,
                     )
@@ -253,16 +254,8 @@ async def backtest_single(req: BacktestRequest) -> dict:
     return result.model_dump()
 
 
-@router.post("/backtest-range", summary="Date-range historical backtest")
-async def backtest_range(req: BacktestRangeRequest) -> dict:
-    """
-    Run backtests at regular intervals across a date range.
-    Returns accuracy curve and aggregate statistics.
-    
-    WARNING: This endpoint calls the AI once per interval point.
-    A 12-month range with 30-day intervals = 12 AI calls.
-    Expect 2-5 minutes for a full range backtest.
-    """
+def _parse_range_dates(req: BacktestRangeRequest):
+    """Validate and parse a range request's dates. Raises HTTP 400 on bad input."""
     try:
         start = datetime.fromisoformat(req.start_date)
         end = datetime.fromisoformat(req.end_date)
@@ -273,6 +266,21 @@ async def backtest_range(req: BacktestRangeRequest) -> dict:
         raise HTTPException(400, detail="End date cannot be in the future.")
     if start >= end:
         raise HTTPException(400, detail="Start date must be before end date.")
+    return start, end
+
+
+@router.post("/backtest-range", summary="Date-range historical backtest")
+async def backtest_range(req: BacktestRangeRequest) -> dict:
+    """
+    Run backtests at regular intervals across a date range.
+    Returns accuracy curve and aggregate statistics.
+    
+    WARNING: This endpoint calls the AI once per interval point and holds
+    the request open until all of them finish (often 10+ minutes).
+    Prefer POST /backtest-range/jobs, which runs in the background and
+    reports progress.
+    """
+    start, end = _parse_range_dates(req)
 
     from src.engine.backtester import run_range_backtest
     result = await run_range_backtest(
@@ -285,3 +293,38 @@ async def backtest_range(req: BacktestRangeRequest) -> dict:
     )
 
     return result.model_dump()
+
+
+@router.post(
+    "/backtest-range/jobs",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Start a date-range backtest in the background",
+)
+async def start_backtest_range_job(req: BacktestRangeRequest) -> dict:
+    """
+    Same work as /backtest-range, but returns a job immediately.
+    Poll GET /api/v1/jobs/{id} for progress, per-date partial results,
+    and the final result; POST /api/v1/jobs/{id}/cancel to stop it.
+    """
+    start, end = _parse_range_dates(req)
+
+    from src.engine.backtester import run_range_backtest
+    from src.engine.job_runner import start_job
+
+    async def work(progress):
+        result = await run_range_backtest(
+            ticker=req.ticker,
+            start_date=start,
+            end_date=end,
+            interval_days=req.interval_days,
+            budget=req.budget,
+            horizon=req.horizon,
+            on_start=progress.set_total,
+            on_step=lambda r: progress.step(
+                f"Backtested {r.backtest_date}", partial=r.model_dump(),
+            ),
+        )
+        return result.model_dump()
+
+    job = start_job('backtest_range', req.model_dump(), work)
+    return job.to_dict(include_result=False)

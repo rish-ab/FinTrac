@@ -75,6 +75,7 @@ class InvestmentVerdict(BaseModel):
     action:       str
     confidence:   float
     reasoning:    str
+    raw_confidence: Optional[float] = None   # model output before calibration correction
     risk_flags:   list[str]       = []
     alternatives: list[AlternativeAsset] = []
     data_gaps:    list[str]       = []
@@ -145,6 +146,7 @@ async def get_investment_verdict(
     query:      InvestmentQuery,
     snapshot:   MarketSnapshot,
     projection: Optional[BudgetProjection],
+    apply_calibration: bool = True,
 ) -> Optional[InvestmentVerdict]:
     """
     Ask Mistral to evaluate an investment and return a structured verdict.
@@ -154,22 +156,25 @@ async def get_investment_verdict(
     from concurrent.futures import ThreadPoolExecutor
 
     # ── V3 PHASE 5: LOAD CALIBRATION CONTEXT ──────────────────
+    # apply_calibration=False (backtests) skips both the prompt warnings
+    # and the numeric correction, so no future knowledge leaks in.
     calibration_profiles = []
     calibration_text = ""
-    try:
-        calibration_profiles = await get_calibration_context(
-            sector=snapshot.sector,
-            asset_class='EQUITY',
-        )
-        calibration_text = format_calibration_for_prompt(calibration_profiles)
-        
-        if calibration_profiles:
-            logger.info(
-                f"V3: Loaded {len(calibration_profiles)} calibration profiles "
-                f"for {snapshot.ticker} ({snapshot.sector})"
+    if apply_calibration:
+        try:
+            calibration_profiles = await get_calibration_context(
+                sector=snapshot.sector,
+                asset_class=snapshot.asset_class or 'EQUITY',
             )
-    except Exception as e:
-        logger.warning(f"V3: Failed to load calibration context: {e}")
+            calibration_text = format_calibration_for_prompt(calibration_profiles)
+            
+            if calibration_profiles:
+                logger.info(
+                    f"V3: Loaded {len(calibration_profiles)} calibration profiles "
+                    f"for {snapshot.ticker} ({snapshot.sector})"
+                )
+        except Exception as e:
+            logger.warning(f"V3: Failed to load calibration context: {e}")
 
     # ── V3 PHASE 6: LOAD ACTIVE IMPROVEMENTS ──────────────────
     active_improvements = []
@@ -263,6 +268,7 @@ async def get_investment_verdict(
         clean_json  = _extract_json(raw_response)
         parsed_dict = json.loads(clean_json)
         verdict     = InvestmentVerdict(**parsed_dict)
+        verdict.raw_confidence = verdict.confidence
         
         # ── V3 PHASE 5: APPLY CALIBRATION CORRECTION ──────────
         if calibration_profiles:
