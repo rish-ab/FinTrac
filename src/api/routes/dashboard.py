@@ -222,6 +222,37 @@ async def get_recent_predictions(limit: int = 20) -> List[Dict[str, Any]]:
     return predictions
 
 
+# ── ANALYSED TICKERS ───────────────────────────────────────────────────────────
+
+@router.get("/analysed-tickers")
+async def get_analysed_tickers() -> List[Dict[str, Any]]:
+    """Every ticker that has been analysed, with sector and analysis count."""
+    async with AsyncSessionFactory() as db:
+        result = await db.execute(
+            select(
+                PredictionRecord.ticker,
+                func.max(PredictionRecord.sector).label('sector'),
+                func.max(PredictionRecord.asset_class).label('asset_class'),
+                # Checkpoints share their parent's timestamp, so this
+                # counts analyses rather than records
+                func.count(func.distinct(PredictionRecord.prediction_timestamp)).label('analyses'),
+                func.max(PredictionRecord.prediction_timestamp).label('last_analysed'),
+            )
+            .group_by(PredictionRecord.ticker)
+            .order_by(func.max(PredictionRecord.prediction_timestamp).desc())
+        )
+        return [
+            {
+                'ticker': row.ticker,
+                'sector': row.sector,
+                'asset_class': row.asset_class,
+                'analyses': row.analyses,
+                'last_analysed': row.last_analysed.isoformat(),
+            }
+            for row in result
+        ]
+
+
 # ── TOP ATTRIBUTIONS ───────────────────────────────────────────────────────────
 
 @router.get("/top-attributions")

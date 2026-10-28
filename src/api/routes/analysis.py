@@ -93,6 +93,7 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
             try:
                 from datetime import timedelta
                 from src.db.session import AsyncSessionFactory
+                from src.engine.prediction_evaluator import make_checkpoint_prediction
 
                 horizon_str = _horizon_to_string(query.horizon_years)
                 horizon_delta = _horizon_to_timedelta(query.horizon_years)
@@ -139,8 +140,14 @@ async def evaluate_investment(query: InvestmentQuery) -> InvestmentAnalysisRespo
                         evaluation_due_at=evaluation_due,
                     )
                     pred_session.add(prediction)
+                    checkpoint = make_checkpoint_prediction(prediction)
+                    if checkpoint is not None:
+                        pred_session.add(checkpoint)
                     await pred_session.commit()
-                    logger.info(f"V3: Recorded prediction for {query.ticker} (horizon={horizon_str})")
+                    logger.info(
+                        f"V3: Recorded prediction for {query.ticker} (horizon={horizon_str}"
+                        f"{', +1m checkpoint' if checkpoint is not None else ''})"
+                    )
             except Exception as e:
                 logger.error(f"V3: Failed to record prediction: {e}")
 

@@ -113,6 +113,43 @@ export interface WatchlistResponse extends WatchlistCreate {
   sentiment_trigger_low: number | null;
 }
 
+export interface HoldingCreate {
+  ticker: string;
+  action: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  notes?: string | null;
+}
+
+export interface HoldingResponse {
+  position_id: string;
+  ticker: string;
+  quantity: number;
+  avg_cost: number;
+  total_cost: number;
+  current_price: number | null;
+  current_value: number | null;
+  unrealized_pnl: number | null;
+  pnl_pct: number | null;
+}
+
+export interface PortfolioSummary {
+  portfolio: PortfolioResponse;
+  total_invested: number;
+  total_current_value: number | null;
+  total_pnl: number | null;
+  total_pnl_pct: number | null;
+  holdings: HoldingResponse[];
+}
+
+export interface AnalysedTicker {
+  ticker: string;
+  sector: string | null;
+  asset_class: string | null;
+  analyses: number;
+  last_analysed: string;
+}
+
 export interface AlertResponse {
   id: string;
   title?: string;

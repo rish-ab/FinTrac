@@ -243,6 +243,14 @@ def _round(x: Optional[float], digits: int = 4) -> Optional[float]:
     return None if x is None else round(x, digits)
 
 
+def _scope_is_testable(predictions: List[dict]) -> bool:
+    """Enough predictions to detect a bias AND validate it on a holdout."""
+    if len(predictions) < MIN_SAMPLE_SIZE:
+        return False
+    _, holdout = temporal_split(predictions, HOLDOUT_FRACTION)
+    return len(holdout) >= MIN_HOLDOUT_SIZE
+
+
 def _calibrate_scope(predictions: List[dict]) -> List[dict]:
     """
     Detect biases for one scope (global / a sector / an asset class)
@@ -253,12 +261,10 @@ def _calibrate_scope(predictions: List[dict]) -> List[dict]:
 
     Expects predictions already de-duplicated.
     """
-    if len(predictions) < MIN_SAMPLE_SIZE:
+    if not _scope_is_testable(predictions):
         return []
 
     fit, holdout = temporal_split(predictions, HOLDOUT_FRACTION)
-    if len(holdout) < MIN_HOLDOUT_SIZE:
-        return []
 
     confidences = [p['confidence'] for p in predictions]
     outcomes = [p['is_correct'] for p in predictions]
@@ -547,11 +553,6 @@ async def run_calibration_engine() -> dict:
             f"({len(all_predictions)} after de-duplication)"
         )
 
-        # ── DEACTIVATE OLD PROFILES ────────────────────────────
-        deactivated = await _deactivate_old_profiles(db)
-        if deactivated > 0:
-            logger.info(f"Deactivated {deactivated} old calibration profiles")
-
         # ── BUILD SCOPES ───────────────────────────────────────
         # (label, sector, asset_class, predictions)
         scopes: List[Tuple[str, Optional[str], Optional[str], List[dict]]] = [
@@ -565,20 +566,21 @@ async def run_calibration_engine() -> dict:
         scopes += [(f'SECTOR:{s}', s, None, preds) for s, preds in sectors.items()]
         scopes += [(f'CLASS:{c}', None, c, preds) for c, preds in asset_classes.items()]
 
-        profiles_created = 0
+        new_rows: List[CalibrationProfile] = []
         biases_detected = []
+        scopes_evaluated = 0
 
         for label, sector, asset_class, preds in scopes:
-            if len(preds) < MIN_SAMPLE_SIZE:
+            if not _scope_is_testable(preds):
                 logger.debug(
-                    f"{label} has {len(preds)} predictions "
-                    f"(< {MIN_SAMPLE_SIZE}), skipping"
+                    f"{label} has {len(preds)} predictions — too few to "
+                    f"detect and holdout-validate a bias, skipping"
                 )
                 continue
 
+            scopes_evaluated += 1
             for profile in _calibrate_scope(preds):
-                db.add(_profile_row(sector, asset_class, profile))
-                profiles_created += 1
+                new_rows.append(_profile_row(sector, asset_class, profile))
                 biases_detected.append({
                     'scope': label,
                     'bias': profile['bias_type'],
@@ -592,7 +594,27 @@ async def run_calibration_engine() -> dict:
                     f"n={profile['sample_size']})"
                 )
 
-        # ── COMMIT ─────────────────────────────────────────────
+        # ── REPLACE OLD PROFILES ───────────────────────────────
+        # Only when at least one scope was actually tested. With too
+        # little data the run can't confirm or refute existing
+        # profiles, so they stay as they are.
+        if scopes_evaluated == 0:
+            logger.info(
+                f"No scope has enough evaluated predictions to test "
+                f"(have {len(all_predictions)}). Existing profiles kept."
+            )
+            return {
+                'status': 'skipped',
+                'reason': 'insufficient_evaluated_predictions',
+                'predictions_analyzed': len(all_predictions),
+                'profiles_created': 0,
+            }
+
+        deactivated = await _deactivate_old_profiles(db)
+        if deactivated > 0:
+            logger.info(f"Deactivated {deactivated} old calibration profiles")
+        db.add_all(new_rows)
+        profiles_created = len(new_rows)
         await db.commit()
 
         global_stats = _compute_accuracy_stats(all_predictions)

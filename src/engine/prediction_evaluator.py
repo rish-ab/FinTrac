@@ -15,6 +15,10 @@
 #   4. Guards against near-zero elapsed time: if the prediction is
 #      younger than MIN_ELAPSED_HOURS, evaluation is deferred even
 #      if evaluation_due_at is (incorrectly) in the past.
+#   5. CHECKPOINTS: a long-horizon call (e.g. 5y) would not be graded
+#      for years, so calibration would never see it. Each one gets a
+#      companion 1m "checkpoint" record — same ticker, direction and
+#      raw confidence — graded a month after the call was made.
 # =============================================================
 
 import asyncio
@@ -27,6 +31,7 @@ from loguru import logger
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.models import new_uuid
 from src.db.v3_models import PredictionRecord, PredictionOutcome
 from src.db.session import AsyncSessionFactory
 from src.ingestion.asset_registry import resolve_ticker
@@ -39,6 +44,10 @@ HOLD_TOLERANCE_PCT = 3.0
 # Never evaluate a prediction younger than this, even if due_at says so.
 # Protects against bad seed data / backfill errors producing 0.00% returns.
 MIN_ELAPSED_HOURS = 24
+
+# Predictions with a longer horizon than this get a checkpoint record
+CHECKPOINT_HORIZON = '1m'
+CHECKPOINT_DELTA = timedelta(days=30)
 
 
 # ── HORIZON PARSING ────────────────────────────────────────────────────────────
@@ -276,3 +285,69 @@ async def backfill_evaluation_due_dates() -> None:
             pred.evaluation_due_at = pred.prediction_timestamp + delta
         await db.commit()
         logger.info("Backfill complete")
+
+
+# ── CHECKPOINT PREDICTIONS ─────────────────────────────────────────────────────
+
+def make_checkpoint_prediction(parent: PredictionRecord) -> Optional[PredictionRecord]:
+    """
+    Build a 1m checkpoint copy of a long-horizon prediction, or None if
+    the parent's horizon is already CHECKPOINT_DELTA or shorter.
+
+    The checkpoint keeps the parent's timestamp, so its outcome is the
+    price move in the month after the call was actually made.
+    """
+    delta = _parse_horizon(parent.prediction_horizon)
+    if delta is None or delta <= CHECKPOINT_DELTA:
+        return None
+
+    if parent.id is None:
+        parent.id = new_uuid()
+
+    return PredictionRecord(
+        ticker=parent.ticker,
+        prediction_timestamp=parent.prediction_timestamp,
+        prediction_horizon=CHECKPOINT_HORIZON,
+        predicted_direction=parent.predicted_direction,
+        predicted_return_pct=None,
+        confidence_score=parent.confidence_score,
+        raw_confidence=parent.raw_confidence,
+        analysis_context={
+            **(parent.analysis_context or {}),
+            'checkpoint_of': parent.id,
+            'checkpoint_parent_horizon': parent.prediction_horizon,
+        },
+        prompt_version=parent.prompt_version,
+        model_version=parent.model_version,
+        sector=parent.sector,
+        asset_class=parent.asset_class,
+        evaluation_status='PENDING',
+        evaluation_due_at=parent.prediction_timestamp + CHECKPOINT_DELTA,
+    )
+
+
+async def backfill_checkpoint_predictions() -> int:
+    """
+    Create checkpoints for existing long-horizon predictions that don't
+    have one yet. Returns the number created. Safe to re-run.
+    """
+    async with AsyncSessionFactory() as db:
+        result = await db.execute(select(PredictionRecord))
+        predictions = result.scalars().all()
+
+        has_checkpoint = {
+            (p.analysis_context or {}).get('checkpoint_of')
+            for p in predictions
+        }
+        created = 0
+        for parent in predictions:
+            if parent.id in has_checkpoint or 'checkpoint_of' in (parent.analysis_context or {}):
+                continue
+            checkpoint = make_checkpoint_prediction(parent)
+            if checkpoint is not None:
+                db.add(checkpoint)
+                created += 1
+        await db.commit()
+
+    logger.info(f"Checkpoint backfill: created {created} checkpoint predictions")
+    return created

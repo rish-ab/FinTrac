@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CalendarClock, Info, LoaderCircle, Play, Sparkles } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
-import type { BacktestRangeJob, BacktestRangeRequest, BacktestRequest, JsonRecord } from '../../api/types';
+import type { AnalysedTicker, BacktestRangeJob, BacktestRangeRequest, BacktestRequest, JsonRecord } from '../../api/types';
+import { useApiQuery } from '../../hooks/useApiQuery';
 import { useJob } from '../../hooks/useJob';
 import BacktestJobProgress from './BacktestJobProgress';
 import { asRecords, extractRows, isRecord, safeText } from '../../lib/format';
@@ -30,6 +31,16 @@ export default function BacktestingPage() {
   // Range backtests run as API background jobs (one AI call per date)
   const rangeJob = useJob<BacktestRangeJob>('fintrac.backtest-range-job');
   const jobRunning = rangeJob.running;
+  const analysedLoader = useCallback(() => api.analysedTickers(), []);
+  const analysed = useApiQuery<AnalysedTicker[]>(analysedLoader);
+  const analysedBySector = useMemo(() => {
+    const groups = new Map<string, AnalysedTicker[]>();
+    for (const item of analysed.data ?? []) {
+      const sector = item.sector ?? 'Unknown';
+      groups.set(sector, [...(groups.get(sector) ?? []), item]);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [analysed.data]);
 
   useEffect(() => {
     const job = rangeJob.job;
@@ -83,6 +94,7 @@ export default function BacktestingPage() {
         <div className="mb-4 grid grid-cols-2 rounded-lg border border-line bg-canvas p-1"><button type="button" className={`rounded-md px-3 py-2 text-sm ${mode === 'single' ? 'bg-raised font-medium text-primaryText' : 'text-secondaryText'}`} onClick={() => { setMode('single'); setError(null); }}>Single date</button><button type="button" className={`rounded-md px-3 py-2 text-sm ${mode === 'range' ? 'bg-raised font-medium text-primaryText' : 'text-secondaryText'}`} onClick={() => { setMode('range'); setError(null); }}>Date range</button></div>
         <form id="backtest-submit-form" className="space-y-4" onSubmit={runBacktest}>
           <label className="form-label">Asset ticker<input className="input-control mt-2 font-mono uppercase" value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} minLength={1} maxLength={20} required placeholder="Enter a ticker" /></label>
+          {analysedBySector.length > 0 && <div><p className="text-[11px] font-medium uppercase tracking-wide text-mutedText">Previously analysed</p><div className="mt-2 max-h-40 space-y-2 overflow-y-auto pr-1">{analysedBySector.map(([sector, items]) => <div key={sector}><p className="text-[11px] text-secondaryText">{sector}</p><div className="mt-1 flex flex-wrap gap-1.5">{items.map((item) => <button type="button" key={item.ticker} title={`${item.analyses} ${item.analyses === 1 ? 'analysis' : 'analyses'}`} className={`rounded-md border px-2 py-0.5 font-mono text-xs ${ticker === item.ticker ? 'border-accent text-accent' : 'border-line text-secondaryText hover:text-primaryText'}`} onClick={() => setTicker(item.ticker)}>{item.ticker}</button>)}</div></div>)}</div></div>}
           {mode === 'single' ? <label className="form-label">Historical date<input className="input-control mt-2" type="date" value={date} onChange={(event) => setDate(event.target.value)} required /></label> : <>
             <div className="grid grid-cols-2 gap-3"><label className="form-label">Start date<input className="input-control mt-2" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required /></label><label className="form-label">End date<input className="input-control mt-2" type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} required /></label></div>
             <label className="form-label">Interval (days)<input className="input-control mt-2" type="number" min={7} max={365} step={1} value={intervalDays} onChange={(event) => setIntervalDays(event.target.value)} required /><span className="mt-1 block text-[11px] text-mutedText">Allowed by API: 7–365 days</span></label>
